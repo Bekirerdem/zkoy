@@ -25,7 +25,7 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-function statePayload(room: Room, token: string | null) {
+function statePayload(room: Room, token: string | null, height: number) {
   const s = room.state;
   const base: Record<string, unknown> = {
     code: s.code,
@@ -33,6 +33,7 @@ function statePayload(room: Room, token: string | null) {
     round: s.round,
     endsAt: room.phaseEndsAt,
     potZats: s.potZats,
+    height,
     players: s.players.map((p) => ({ id: p.id, name: p.name, alive: p.alive })),
     voteWeightCast:
       s.phase === "VOTE"
@@ -151,7 +152,9 @@ async function handle(req: Request): Promise<Response> {
         return json({ ok: true });
       }
       if (req.method === "GET" && sub === "state") {
-        return json(statePayload(room, url.searchParams.get("token")));
+        return json(
+          statePayload(room, url.searchParams.get("token"), await zcash.height()),
+        );
       }
       if (req.method === "POST" && sub === "action") {
         const body = (await req.json()) as {

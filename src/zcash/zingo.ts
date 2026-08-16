@@ -79,16 +79,18 @@ async function runOffline(dataDir: string, cmd: string[]): Promise<unknown> {
 }
 
 /**
- * Online piped session: `network clearnet`, a sync grace wait (the session's
- * background sync races the send — Faz 0 finding: proposing from stale state
- * reports "Insufficient balance (have 0)"), then the commands + quit.
+ * Online piped session. The session's background sync races any send:
+ * proposing from stale state reports "Insufficient balance (have 0)". The
+ * sweep bootstrap time varies (10-60s), so a fixed grace is not enough — we
+ * stream stderr and hold the commands until the sync-completed marker (or
+ * the sweep-failed marker, in which case disk state is all we will get).
  */
-const SYNC_GRACE_MS = Number(process.env.ZKOY_SYNC_GRACE_MS ?? 25_000);
+const SYNC_WAIT_MS = Number(process.env.ZKOY_SYNC_WAIT_MS ?? 120_000);
 
 async function runOnlineSession(
   dataDir: string,
   cmds: string[],
-  timeoutMs = 240_000,
+  timeoutMs = 300_000,
 ): Promise<string> {
   return withWalletLock(dataDir, async () => {
     const p = Bun.spawn(
@@ -96,18 +98,37 @@ async function runOnlineSession(
       { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
     );
     const killer = setTimeout(() => p.kill(), timeoutMs);
+    const decoder = new TextDecoder();
+    let errBuf = "";
+    let outBuf = "";
+    const errPump = (async () => {
+      for await (const chunk of p.stderr) errBuf += decoder.decode(chunk);
+    })();
+    const outPump = (async () => {
+      for await (const chunk of p.stdout) outBuf += decoder.decode(chunk);
+    })();
+
     p.stdin.write("network clearnet\n");
-    await new Promise((r) => setTimeout(r, SYNC_GRACE_MS));
+    const deadline = Date.now() + SYNC_WAIT_MS;
+    while (Date.now() < deadline) {
+      if (
+        /Sync completed/.test(errBuf) ||
+        /no sync indexer selected/.test(errBuf)
+      )
+        break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
     p.stdin.write(cmds.join("\n") + "\nquit\n");
     p.stdin.end();
-    const out = await new Response(p.stdout).text();
-    const err = await new Response(p.stderr).text();
+
+    await Promise.all([outPump, errPump]);
+    const exit = await p.exited;
     clearTimeout(killer);
-    if ((await p.exited) !== 0 || /Error:/.test(err))
+    if (exit !== 0 || /Error:/.test(errBuf))
       throw new Error(
-        `zingo session failed:\n--- stderr ---\n${err.slice(-1200)}\n--- stdout ---\n${out.slice(-800)}`,
+        `zingo session failed:\n--- stderr ---\n${errBuf.slice(-1200)}\n--- stdout ---\n${outBuf.slice(-800)}`,
       );
-    return out;
+    return outBuf;
   });
 }
 
@@ -219,6 +240,22 @@ export class ZingoService implements ZcashService {
     const txid = json?.txids?.[0];
     if (!txid) throw new Error(`quicksend returned no txid: ${out.slice(-1500)}`);
     return txid;
+  }
+
+  private heightCache = { value: 0, at: 0 };
+  async height(): Promise<number> {
+    if (Date.now() - this.heightCache.at < 45_000) return this.heightCache.value;
+    try {
+      const raw = (await runOffline(OPS_DIR, ["height"])) as unknown;
+      const h =
+        typeof raw === "number"
+          ? raw
+          : Number((raw as { height?: number })?.height ?? 0);
+      if (h > 0) this.heightCache = { value: h, at: Date.now() };
+    } catch {
+      // stale clock beats a dead clock on stage
+    }
+    return this.heightCache.value;
   }
 
   async readRoomMemos(code: string): Promise<string[]> {

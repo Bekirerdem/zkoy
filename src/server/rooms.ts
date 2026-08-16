@@ -88,6 +88,12 @@ export class Room {
 
   start() {
     const events = engine.start(this.state, Date.now() % 2 ** 31, MIN_PLAYERS);
+    // Pot fonlaması: oda başına tek gerçek tx, toplam giriş tutarı (SPEC §3).
+    events.push({
+      to: "room",
+      memo: { v: 1, t: "pot", zat: this.state.potZats },
+      zats: this.state.potZats,
+    });
     this.seal(events);
     this.announce("info", "Köy uykuya dalıyor… roller mühürlendi.");
     this.armTimer();

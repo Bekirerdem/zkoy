@@ -42,4 +42,9 @@ export class MockZcashService implements ZcashService {
       .filter((e) => e.to === "room")
       .map((e) => JSON.stringify(e.memo));
   }
+
+  private t0 = Date.now();
+  async height(): Promise<number> {
+    return 4_276_000 + Math.floor((Date.now() - this.t0) / 75_000);
+  }
 }

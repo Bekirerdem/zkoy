@@ -83,8 +83,9 @@ Hedef: ops→oda. İstisnalar belirtildi.
 {"v":1,"t":"spoiler","roles":{...}}                                → ölen oyuncunun hesabına
 {"v":1,"t":"reveal","p","tier","salt"}                             (oyun sonu taahhüt açılımı)
 {"v":1,"t":"prize","zat":<miktar>,"reason"}                        → kazanan hesabına, gerçek ödeme
+{"v":1,"t":"pot","zat":<toplam giriş>}                             → oyun başında, gerçek pot fonlaması
 ```
-Pot fonlaması: oda başına tek gerçek tx (ops→oda, toplam giriş tutarı).
+Pot fonlaması: oda başına tek gerçek tx (ops→oda, toplam giriş tutarı) — `t:"pot"` memo'suyla.
 
 ### Ö7-Ö8 mimariye nasıl oturuyor (yeni altyapı: SIFIR)
 - **Ö7 Kanıtlı Gözcü**: `seerr` memo'su zaten gece çözümünde odaya yazılıyor. "Kanıtı aç" = `POST /action {type:"prove"}` → sunucu o TEK memo'nun çözülmüş içeriğini + txid + blok linkini perdeye basar. Oyun sonu UFVK ifşasında herkes aynı memo'yu bağımsız doğrular. Yani Ö7 = mevcut bir memo'nun perde render'ı + bir buton. Denge: kanıt açan gözcü hedef olur (kendi kendini dengeler).

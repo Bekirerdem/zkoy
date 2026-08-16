@@ -33,4 +33,6 @@ export interface ZcashService {
   sealed(code: string): SealedMemo[];
   /** Read the room account's memo feed (ghost view / audit). */
   readRoomMemos(code: string): Promise<string[]>;
+  /** Last known chain height — the village clock tower (SPEC Ö5). */
+  height(): Promise<number>;
 }

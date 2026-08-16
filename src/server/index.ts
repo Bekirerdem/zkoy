@@ -8,6 +8,7 @@ import { Room, RoomRegistry } from "./rooms";
 import { screenHtml } from "./screen";
 
 const PORT = Number(process.env.ZKOY_PORT ?? 3131);
+const WEB_DIR = process.env.ZKOY_WEB_DIR ?? "mobile/build/web";
 const zcash =
   process.env.ZKOY_CHAIN === "zingo" ? new ZingoService() : new MockZcashService();
 const registry = new RoomRegistry(zcash);
@@ -192,6 +193,16 @@ async function handle(req: Request): Promise<Response> {
           })),
         });
       }
+    }
+    // GET /app/* — Flutter web build'i (PWA); telefonlar tarayıcıdan oynar.
+    if (req.method === "GET" && parts[0] === "app") {
+      const rel = parts.slice(1).join("/") || "index.html";
+      const file = Bun.file(`${WEB_DIR}/${rel}`);
+      if (await file.exists()) return new Response(file);
+      // SPA fallback: bilinmeyen yollar index.html'e düşer
+      const index = Bun.file(`${WEB_DIR}/index.html`);
+      if (await index.exists()) return new Response(index);
+      return json({ error: "web build yok — mobile/build/web bekleniyor" }, 404);
     }
     // GET /screen/:code
     if (req.method === "GET" && parts[0] === "screen" && parts[1]) {

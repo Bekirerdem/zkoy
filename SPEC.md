@@ -1,4 +1,6 @@
-# Vampir Köylü on Zcash — Tasarım Spec'i (çalışma adı)
+# ZKöy — Vampir Köylü on Zcash — Tasarım Spec'i
+
+> **ZKöy** = ZK (zero-knowledge) + köy. Repo: `Bekirerdem/zkoy`. Protokol katmanının adı: **Mühür** (mühürlü oylama protokolü).
 
 > Rlay Week Şirince — ZcashTR 48h Challenge. Teslim: **17 Ağustos 20:30**.
 > Takım: Bekir (backend + Zcash) · Selinay (Flutter).

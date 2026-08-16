@@ -78,7 +78,13 @@ async function runOffline(dataDir: string, cmd: string[]): Promise<unknown> {
   });
 }
 
-/** Online piped session: `network clearnet` + given commands + quit. */
+/**
+ * Online piped session: `network clearnet`, a sync grace wait (the session's
+ * background sync races the send — Faz 0 finding: proposing from stale state
+ * reports "Insufficient balance (have 0)"), then the commands + quit.
+ */
+const SYNC_GRACE_MS = Number(process.env.ZKOY_SYNC_GRACE_MS ?? 25_000);
+
 async function runOnlineSession(
   dataDir: string,
   cmds: string[],
@@ -89,15 +95,18 @@ async function runOnlineSession(
       [ZINGO, "--chain", "testnet", "--server", SERVER, "--data-dir", dataDir],
       { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
     );
-    const script = ["network clearnet", ...cmds, "quit"].join("\n") + "\n";
-    p.stdin.write(script);
-    p.stdin.end();
     const killer = setTimeout(() => p.kill(), timeoutMs);
+    p.stdin.write("network clearnet\n");
+    await new Promise((r) => setTimeout(r, SYNC_GRACE_MS));
+    p.stdin.write(cmds.join("\n") + "\nquit\n");
+    p.stdin.end();
     const out = await new Response(p.stdout).text();
     const err = await new Response(p.stderr).text();
     clearTimeout(killer);
-    if ((await p.exited) !== 0)
-      throw new Error(`zingo session failed: ${(err || out).slice(-2000)}`);
+    if ((await p.exited) !== 0 || /Error:/.test(err))
+      throw new Error(
+        `zingo session failed:\n--- stderr ---\n${err.slice(-1200)}\n--- stdout ---\n${out.slice(-800)}`,
+      );
     return out;
   });
 }

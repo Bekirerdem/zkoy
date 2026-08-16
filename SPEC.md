@@ -33,20 +33,20 @@ Zcash ekosisteminde olmayan **mühürlü oylama protokolünü** memo üstüne ya
 | Ö6 | Şirince teması | Köy = Şirince; anonslar ve görsel dil yerel | kozmetik | v1 |
 | Ö7 | Kanıtlı Gözcü | Gözcü sorgu cevabını zincir kanıtıyla perdeye açabilir (bedeli: kimliğini ifşa eder) | memo + seçici ifşa | stretch |
 | Ö8 | Hayalet Kehaneti | Hayaletler her tur "sıradaki asılan kim" diye mühürlü oy atar; en isabetlisi "Kahin Hayalet" pot dilimi alır | memo | stretch |
-| Ö9 | Ağalık modu | Oda seçeneği: kademeli gizli giriş + ağırlıklı gizli oy (aşağıda) | shielded tutar + commit | v1 |
+| Ö9 | Ağalık modu | TEK oyun modu: kademeli gizli giriş + ağırlıklı gizli oy (aşağıda) | shielded tutar + commit | v1 |
 
 ### Ö9 — Ağalık modu detayı
 - Giriş kademeleri: **Rençber 0.001 / Muhtar 0.004 / Ağa 0.009 TAZ** → oy ağırlığı **1x / 2x / 3x** (karekök fiyatlama: ağırlık parayla doğrusal artmaz → plütokrasi freni).
 - Kademe seçimi gizli: join memo'suna `sha256(tier|salt)` taahhüdü yazılır; oyun sonunda tier+salt ifşa edilir, taahhütle eşleşir (sonradan değiştirilemez).
 - Kademeli yapı anonimlik kümesi korur (aynı kademede birden çok oyuncu) — benzersiz ağırlığın kimlik sızdırması problemi böyle çözülür (NU7'nin oy-bölme çözümünün hafif kardeşi; sunumda söylenir).
 - Pot payı girişle orantılı: güç alan risk de alır (Ağa vampir yakalanırsa büyük kaybeder).
-- Klasik mod: herkes Rençber, ağırlıklar 1x, taahhüt yok. **Demo: önce Klasik el, sonra Ağalık eli.**
+- **Tek mod: Ağalık** (karar 17 Ağu — Klasik mod kaldırıldı). Kademe seçmek istemeyen Rençber girer; taahhüt herkes için zorunlu. Demo tek modla oynanır.
 
 ### Pot dağıtım tablosu (END)
 - Deli asıldıysa: potun %10'u Deli'ye (bir kez).
 - Kahin Hayalet (Ö8 açıksa): %5.
 - Doktor primi (onaylı kurtarış başına): %5, en fazla %10.
-- Kalan: kazanan tarafın sağ üyelerine giriş-orantılı (Klasik'te eşit). Vampirler kazanırsa kalanın tamamı vampirlere.
+- Kalan: kazanan tarafın sağ üyelerine giriş-orantılı. Vampirler kazanırsa kalanın tamamı vampirlere.
 
 ## 3. Mimari
 
@@ -72,7 +72,7 @@ Zcash ekosisteminde olmayan **mühürlü oylama protokolünü** memo üstüne ya
 ### Memo protokolü (v1, JSON ≤512B) — asıl "ürün" katmanı
 Hedef: ops→oda. İstisnalar belirtildi.
 ```
-{"v":1,"t":"join","g","p","name","c":"<tierCommit|yok>"}
+{"v":1,"t":"join","g","p","name","c":"<tierCommit>"}
 {"v":1,"t":"role","role":"vampir|koylu|doktor|gozcu|deli"}        → oyuncu hesabına
 {"v":1,"t":"night","r","p","x":"<hedef>"}                          (vampir/doktor/gözcü hamlesi)
 {"v":1,"t":"seerr","r","p":"<gözcü>","x","vamp":true|false}        (gece çözümünde ebe yazar)
@@ -93,7 +93,7 @@ Pot fonlaması: oda başına tek gerçek tx (ops→oda, toplam giriş tutarı).
 
 ### API
 ```
-POST /room {mode}                → {code, roomAddress}
+POST /room                       → {code, roomAddress}
 POST /room/:code/join {name,tier}→ {playerId, token, playerAddress}
 POST /room/:code/start
 GET  /room/:code/state           → faz, sayaç, oyuncular, sayım(toplam), perde verisi
@@ -121,7 +121,7 @@ Sözleşme: bu dosyadaki API + memo şeması. Değişiklik ikisinin onayıyla ve
 - **Faz 0 — doğrulama (önce bu):** zingo-cli'de (1) yeni hesap türetme, (2) hesap-başına UFVK export, (3) JSON memo gönder + oda hesabından okuma. Üçü kanıtlanmadan Faz 2 mimarisine güven yok.
 - **Faz 1 — motor (zincirsiz, paralel):** sahte Zcash servisiyle oyun uçtan uca oynanır; Selinay sahte API'ye karşı ekranları yapar. **Oyun, zincir olmadan da oynanabilir olmalı** (demo sigortası).
 - **Faz 2 — zincir takılır:** rol/oy/vasiyet/sonuç memo'ları + pot + ödül gerçek testnet'te. Mixnet nazlanması bilinen risk → gönderimler kuyruklu+retry'lı.
-- **Faz 3 — sahne:** perde sayfası + cam ebe denetim görünümü + Klasik→Ağalık demo provası.
+- **Faz 3 — sahne:** perde sayfası + cam ebe denetim görünümü + Ağalık demo provası.
 - **Kapı:** Ö7-Ö8 yalnız Faz 2 E2E yeşilse; Gözcü rolü v1'de var ama Ö7 kanıt butonu stretch.
 
 ## 6. Kapsam DIŞI (bilinçli)
@@ -136,7 +136,6 @@ Self-custody oyuncu cüzdanı (yol haritası: ZIP-321 QR ile kendi cüzdanından
 ## 8. Demo akış taslağı (sunum ~10 dk)
 
 1. 60 sn tez + mimari tek slayt (memo protokolü vurgusu)
-2. Salonla **Klasik el** (hızlandırılmış: 1 gece + 1 gündüz)
-3. "Şimdi para giriyor" → **Ağalık eli** (kademeler gizli; perde sayımında "kim bu ağa?" anı)
-4. Oyun sonu **ifşa partisi**: UFVK perdeye, kim-kime dökümü + tier'lar + blok mühürleri
-5. Kapanış: NU7 bağlantısı + yol haritası merdiveni + "Sinancan, sıradaki etkinlikte bununla oynatın"
+2. Salonla **Ağalık eli** (hızlandırılmış: 1-2 gece + gündüz; kademeler gizli, perde sayımında "kim bu ağa?" anı)
+3. Oyun sonu **ifşa partisi**: UFVK perdeye, kim-kime dökümü + tier'lar + blok mühürleri
+4. Kapanış: NU7 bağlantısı + yol haritası merdiveni + "Sinancan, sıradaki etkinlikte bununla oynatın"

@@ -16,10 +16,10 @@ import {
 } from "../src/engine/engine";
 import { RoomState, Role } from "../src/engine/types";
 
-function makeRoom(n: number, mode: "klasik" | "agalik" = "klasik"): RoomState {
-  const state = createRoom("TEST", mode);
+function makeRoom(n: number): RoomState {
+  const state = createRoom("TEST");
   for (let i = 0; i < n; i++) {
-    join(state, `p${i}`, `oyuncu${i}`, mode === "klasik" ? 1 : 1, mode === "agalik" ? `commit${i}` : null);
+    join(state, `p${i}`, `oyuncu${i}`, 1, `commit${i}`);
   }
   return state;
 }
@@ -44,22 +44,25 @@ describe("rolePlan", () => {
 });
 
 describe("lobby", () => {
-  test("join emits sealed join memo and fills pot", () => {
-    const state = createRoom("TEST", "klasik");
-    const events = join(state, "p0", "ali", 1, null);
-    expect(events[0]!.memo).toMatchObject({ t: "join", p: "p0", name: "ali" });
-    expect(state.potZats).toBe(100_000);
+  test("join emits sealed join memo with commit and fills pot", () => {
+    const state = createRoom("TEST");
+    const events = join(state, "p0", "ali", 3, "commit0");
+    expect(events[0]!.memo).toMatchObject({
+      t: "join",
+      p: "p0",
+      name: "ali",
+      c: "commit0",
+    });
+    expect(state.potZats).toBe(900_000); // Ağa entry
   });
-  test("agalik requires tier commit, klasik rejects tiers", () => {
-    const a = createRoom("A", "agalik");
-    expect(() => join(a, "p0", "ali", 3, null)).toThrow(EngineError);
-    const k = createRoom("K", "klasik");
-    expect(() => join(k, "p0", "ali", 3, "c")).toThrow(EngineError);
+  test("tier commit is mandatory", () => {
+    const state = createRoom("A");
+    expect(() => join(state, "p0", "ali", 3, "")).toThrow(EngineError);
   });
   test("start needs 7 players and deals every role once", () => {
     const state = makeRoom(6);
     expect(() => start(state, 42)).toThrow(EngineError);
-    join(state, "p6", "oyuncu6", 1, null);
+    join(state, "p6", "oyuncu6", 1, "commit6");
     const events = start(state, 42);
     expect(events.length).toBe(7);
     expect(state.phase).toBe("NIGHT");
@@ -135,6 +138,22 @@ describe("vote", () => {
     vote(state, alive[3]!, alive[4]!);
     resolveVote(state);
     expect(state.lastVote!.lynched).toBe(alive[1]!);
+  });
+  test("Ağa's 3x vote outweighs two Rençber votes", () => {
+    const state = createRoom("W");
+    for (let i = 0; i < 7; i++) {
+      join(state, `p${i}`, `oyuncu${i}`, i === 0 ? 3 : 1, `commit${i}`);
+    }
+    start(state, 42);
+    toVotePhase(state);
+    const alive = state.players.filter((p) => p.alive).map((p) => p.id);
+    vote(state, "p0", alive.find((id) => id !== "p0")!); // Ağa, weight 3
+    const agaTarget = state.votes["p0"]!;
+    const others = alive.filter((id) => id !== "p0" && id !== agaTarget);
+    vote(state, others[0]!, others[1]!); // two Rençber pile on someone else
+    vote(state, others[2]!, others[1]!);
+    resolveVote(state);
+    expect(state.lastVote!.lynched).toBe(agaTarget);
   });
   test("tie → nobody hangs", () => {
     const state = makeRoom(7);

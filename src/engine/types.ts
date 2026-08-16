@@ -2,7 +2,6 @@
 // I/O. Chain writes are emitted as MemoEvent values (matching SPEC.md's memo
 // schema) and consumed by the Zcash service (real or mock).
 
-export type Mode = "klasik" | "agalik";
 export type Role = "vampir" | "koylu" | "doktor" | "gozcu" | "deli";
 export type Phase =
   | "LOBBY"
@@ -28,8 +27,8 @@ export interface Player {
   role: Role | null;
   alive: boolean;
   tier: Tier;
-  /** sha256(tier|salt) hex — agalik mode only. */
-  tierCommit: string | null;
+  /** sha256(tier|salt) hex — mandatory for every player (tek mod: Ağalık). */
+  tierCommit: string;
   tierSalt: string | null;
   will: string | null;
   /** Round the player died in, null while alive. */
@@ -78,7 +77,6 @@ export interface Payout {
 
 export interface RoomState {
   code: string;
-  mode: Mode;
   phase: Phase;
   round: number;
   players: Player[];

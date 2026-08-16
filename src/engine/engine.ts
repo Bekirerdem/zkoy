@@ -5,7 +5,6 @@
 
 import {
   MemoEvent,
-  Mode,
   Payout,
   Phase,
   Player,
@@ -39,10 +38,9 @@ function alivePlayers(state: RoomState): Player[] {
   return state.players.filter((p) => p.alive);
 }
 
-export function createRoom(code: string, mode: Mode): RoomState {
+export function createRoom(code: string): RoomState {
   return {
     code,
-    mode,
     phase: "LOBBY",
     round: 0,
     players: [],
@@ -64,16 +62,13 @@ export function join(
   id: string,
   name: string,
   tier: Tier,
-  tierCommit: string | null,
+  tierCommit: string,
 ): MemoEvent[] {
   requirePhase(state, "LOBBY");
   if (state.players.length >= MAX_PLAYERS) throw new EngineError("oda dolu");
   if (state.players.some((p) => p.name === name))
     throw new EngineError("bu isim alınmış");
-  if (state.mode === "klasik" && tier !== 1)
-    throw new EngineError("klasik modda herkes Rençber");
-  if (state.mode === "agalik" && !tierCommit)
-    throw new EngineError("ağalık modunda tier taahhüdü zorunlu");
+  if (!tierCommit) throw new EngineError("tier taahhüdü zorunlu");
   state.players.push({
     id,
     name,
@@ -89,14 +84,7 @@ export function join(
   return [
     {
       to: "room",
-      memo: {
-        v: 1,
-        t: "join",
-        g: state.code,
-        p: id,
-        name,
-        ...(tierCommit ? { c: tierCommit } : {}),
-      },
+      memo: { v: 1, t: "join", g: state.code, p: id, name, c: tierCommit },
     },
   ];
 }
@@ -435,15 +423,13 @@ function settle(state: RoomState): MemoEvent[] {
       zats: p.zats,
     });
   }
-  // Ağalık: commitment reveals close the seal (server injects salts it held).
-  if (state.mode === "agalik") {
-    for (const p of state.players) {
-      if (p.tierCommit && p.tierSalt) {
-        events.push({
-          to: "room",
-          memo: { v: 1, t: "reveal", p: p.id, tier: p.tier, salt: p.tierSalt },
-        });
-      }
+  // Commitment reveals close the seal (server injects the salts it held).
+  for (const p of state.players) {
+    if (p.tierSalt) {
+      events.push({
+        to: "room",
+        memo: { v: 1, t: "reveal", p: p.id, tier: p.tier, salt: p.tierSalt },
+      });
     }
   }
   return events;

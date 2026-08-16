@@ -27,6 +27,21 @@ Perde: `http://localhost:3131/screen/<ODA>` — projeksiyona tam ekran.
 | `ZKOY_T_NIGHT/DAWN/DAY/VOTE/EXECUTION` | 75/12/120/75/12 | Faz süreleri (saniye) |
 | `ZINGO_BIN`, `ZKOY_OPS_DIR`, `ZKOY_WALLETS_ROOT`, `ZKOY_LWD` | bkz. `src/zcash/zingo.ts` | zingo yolları |
 
+## Cam ebe: bağımsız doğrulama (jüri komutu)
+
+Oyun sonunda perdeye düşen oda görüş anahtarıyla herkes tüm mühürleri kendisi okur
+(harcama yetkisi yok, okuma var):
+
+```powershell
+zingo-cli.exe --chain testnet --server https://testnet.zec.rocks:443 `
+  --data-dir <BOŞ-KLASÖR> --viewkey "<ODA-UFVK>" --birthday 4276100 `
+  --waitsync messages
+```
+
+Çıktıdaki `memos` alanı oyunun tam zaman çizelgesidir: join'ler, gece hamleleri,
+oylar, sonuçlar — hepsi JSON. Kademe taahhütleri `sha256(tier|salt)` ile doğrulanır.
+(Sweep bazen "0 of 2 candidates" der — aynı komutu tekrar çalıştırın.)
+
 ## Mimari (özet)
 
 ```

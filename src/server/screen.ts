@@ -91,13 +91,12 @@ export function screenHtml(code: string): string {
     padding: 0.9vh 1.6vw; letter-spacing: 0.06em;
     border-bottom: 2px solid rgba(236,228,212,0.22);
   }
-  .p.dead { color: var(--ash); border-bottom-color: transparent; }
+  .p.dead { color: var(--ash); border-bottom-color: transparent; opacity: 0.75; }
   .p.dead::after {
-    content: "MÜHÜRLÜ"; position: absolute; inset: 50% auto auto 50%;
-    transform: translate(-50%, -50%) rotate(-8deg);
-    font-size: 0.62em; letter-spacing: 0.28em; color: var(--wax);
-    border: 1.5px solid var(--wax); border-radius: 3px; padding: 0.1em 0.5em;
-    background: rgba(20,16,14,0.55);
+    content: "MÜHÜRLÜ"; position: absolute; left: 50%; top: -1.15em;
+    transform: translateX(-50%) rotate(-6deg); white-space: nowrap;
+    font-size: 0.5em; letter-spacing: 0.26em; color: var(--wax);
+    border: 1.5px solid var(--wax); border-radius: 3px; padding: 0.08em 0.5em;
   }
 
   /* ── ifşa partisi ────────────────────────────────────────────── */

@@ -209,7 +209,20 @@ export class ZingoService implements ZcashService {
           list.push({ txid, events, at: Date.now() });
           this.log.set(code, list);
         } catch (e) {
+          const msg = String(e);
           console.error(`[zingo] seal failed for ${code}, requeueing:`, e);
+          // Süresi dolmuş imzalı tx cüzdanda takılı kalır: notları rehin tutar
+          // ("have 0") ve her denemede yeniden gönderilir (asla geçemez).
+          // Tespit edince söküyoruz — kuyruk kendini iyileştirir (17 Ağu dersi).
+          const stuck = msg.match(/transaction::Hash\("([0-9a-f]{64})"\)/);
+          if (stuck && /expiry Height/.test(msg)) {
+            try {
+              await runOffline(OPS_DIR, ["remove_transaction", stuck[1]!]);
+              console.error(`[zingo] süresi dolmuş tx söküldü: ${stuck[1]}`);
+            } catch (re) {
+              console.error("[zingo] remove_transaction başarısız:", re);
+            }
+          }
           this.pending.push({ code, events });
           await new Promise((r) => setTimeout(r, 15_000));
         }

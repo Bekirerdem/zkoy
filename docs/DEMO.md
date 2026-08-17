@@ -51,6 +51,15 @@ Not: cüzdan bağlama/self-custody sorusu gelirse → kontratsız zincirde dApp-
 köprüsü diye bir katman yok; ZIP-321 ile kendi cüzdanından katılım yol haritasının
 1. basamağı (SPEC §6).
 
+## Mühür kuyruğu disiplini (17 Ağu saha dersi)
+
+- Kuyruk BELLEKTE: oyun bitti diye sunucuyu HEMEN kapatma — ödül+ifşa mühürleri
+  akana kadar bekle (perdede "mühür N tx" artışı durunca güvenli).
+- 5 turluk gerçek oyunda kuyruk birikti (sweep nazlanması + para üstü konfirmasyonu):
+  oyun sırasında 2-3 tx normal, kalanı oyun sonrası 5-10 dk'da oturur. Panik yok.
+- Demo sabahı ops cüzdanını taze böl (6×0.02 TAZ) + min_confirmations=1 doğrula —
+  burst kapasitesi bu ikisinden geliyor.
+
 ## Bilinen huylar / hızlı çözümler
 
 | Belirti | Sebep | Çözüm |

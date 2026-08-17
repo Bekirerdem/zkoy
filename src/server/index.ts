@@ -217,13 +217,23 @@ async function handle(req: Request): Promise<Response> {
       });
     }
     // GET /app/* — Flutter web build'i (PWA); telefonlar tarayıcıdan oynar.
+    // index.html + service worker taze kalır; ağır varlıklar (canvaskit ~7MB,
+    // main.dart.js) bir gün önbelleklenir — tekrar açılışlar anında olur.
     if (req.method === "GET" && parts[0] === "app") {
       const rel = parts.slice(1).join("/") || "index.html";
+      const fresh =
+        rel === "index.html" || rel === "flutter_service_worker.js";
+      const cache = {
+        "Cache-Control": fresh ? "no-cache" : "public, max-age=86400",
+      };
       const file = Bun.file(`${WEB_DIR}/${rel}`);
-      if (await file.exists()) return new Response(file);
+      if (await file.exists()) return new Response(file, { headers: cache });
       // SPA fallback: bilinmeyen yollar index.html'e düşer
       const index = Bun.file(`${WEB_DIR}/index.html`);
-      if (await index.exists()) return new Response(index);
+      if (await index.exists())
+        return new Response(index, {
+          headers: { "Cache-Control": "no-cache" },
+        });
       return json({ error: "web build yok — mobile/build/web bekleniyor" }, 404);
     }
     // GET /screen/:code

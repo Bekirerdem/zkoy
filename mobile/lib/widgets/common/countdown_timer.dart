@@ -42,9 +42,9 @@ class _CountdownTimerState extends State<CountdownTimer> {
   @override
   void didUpdateWidget(covariant CountdownTimer old) {
     super.didUpdateWidget(old);
-    if (old.seconds != widget.seconds) {
-      _local = widget.seconds;
-    }
+    // Her poll'da sunucuya KOŞULSUZ resenkron — prop kıyası, iki poll aynı
+    // değeri getirince sayaç yerel değerde donuyordu (17 Ağu sınıf bulgusu).
+    _local = widget.seconds;
   }
 
   @override
@@ -75,6 +75,12 @@ class _CountdownTimerState extends State<CountdownTimer> {
                   color: color,
                   fontSize: 56,
                 )),
+        if (_local == 0)
+          Text('faz kapanıyor…',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: color)),
         const SizedBox(height: 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(8),

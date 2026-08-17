@@ -19,10 +19,11 @@ function envMs(name: string, fallback: number): number {
 }
 
 const DEFAULT_DURATIONS: PhaseDurations = {
+  // Sınıf provası dersi (17 Ağu): tur = 30sn tartışma + 30sn oylama.
   NIGHT: envMs("ZKOY_T_NIGHT", 60_000),
   DAWN: envMs("ZKOY_T_DAWN", 10_000),
-  DAY: envMs("ZKOY_T_DAY", 90_000),
-  VOTE: envMs("ZKOY_T_VOTE", 60_000),
+  DAY: envMs("ZKOY_T_DAY", 30_000),
+  VOTE: envMs("ZKOY_T_VOTE", 30_000),
   EXECUTION: envMs("ZKOY_T_EXECUTION", 10_000),
 };
 

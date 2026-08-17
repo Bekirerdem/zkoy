@@ -18,6 +18,8 @@ class NightActionScreen extends StatefulWidget {
 
 class _NightActionScreenState extends State<NightActionScreen> {
   String? _pendingTarget;
+  bool _sealed = false;
+  int _round = -1;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +27,13 @@ class _NightActionScreenState extends State<NightActionScreen> {
     final state = gp.state!;
     final me = state.me!;
     final role = me.role;
+
+    // Widget turlar arasında yeniden kullanılır — eski seçim/onay sızmasın.
+    if (state.round != _round) {
+      _round = state.round;
+      _sealed = false;
+      _pendingTarget = null;
+    }
 
     final title = switch (role) {
       Role.vampir => 'Kurbanını seç 🧛',
@@ -71,10 +80,18 @@ class _NightActionScreenState extends State<NightActionScreen> {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ] else ...[
-                    if (me.acted && _pendingTarget == null)
-                      Text('Hamlen mühürlendi. Bekleniyor…',
-                          style: Theme.of(context).textTheme.bodyLarge)
-                    else ...[
+                    if (_sealed || me.acted) ...[
+                      const Text('✅', style: TextStyle(fontSize: 44)),
+                      const SizedBox(height: 8),
+                      Text('Hamlen mühürlendi',
+                          style: Theme.of(context).textTheme.headlineMedium),
+                      Text('Diğerleri bekleniyor…',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                      TextButton(
+                        onPressed: () => setState(() => _sealed = false),
+                        child: const Text('Hamlemi değiştir'),
+                      ),
+                    ] else ...[
                       PlayerNameGrid(
                         targets: me.targets,
                         selectedId: _pendingTarget,
@@ -87,8 +104,13 @@ class _NightActionScreenState extends State<NightActionScreen> {
                         onPressed: _pendingTarget == null
                             ? null
                             : () {
-                                context.read<GameProvider>().sendNight(_pendingTarget!);
-                                setState(() {});
+                                context
+                                    .read<GameProvider>()
+                                    .sendNight(_pendingTarget!);
+                                setState(() {
+                                  _sealed = true;
+                                  _pendingTarget = null;
+                                });
                               },
                       ),
                     ],

@@ -17,6 +17,8 @@ class VoteScreen extends StatefulWidget {
 
 class _VoteScreenState extends State<VoteScreen> {
   String? _pending;
+  bool _sealed = false;
+  int _round = -1;
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +26,12 @@ class _VoteScreenState extends State<VoteScreen> {
     final state = gp.state!;
     final me = state.me!;
     final myTier = TierX.fromInt(me.tier);
+
+    if (state.round != _round) {
+      _round = state.round;
+      _sealed = false;
+      _pending = null;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Oylama')),
@@ -53,13 +61,18 @@ class _VoteScreenState extends State<VoteScreen> {
                   const SizedBox(height: 20),
                   Text('Kimi asalım?', style: Theme.of(context).textTheme.headlineMedium),
                   const SizedBox(height: 16),
-                  if (me.acted && _pending == null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      child: Text('Oyun mühürlendi. Sonuç bekleniyor…',
-                          style: Theme.of(context).textTheme.bodyLarge),
-                    )
-                  else ...[
+                  if (_sealed || me.acted) ...[
+                    const Text('🗳️', style: TextStyle(fontSize: 44)),
+                    const SizedBox(height: 8),
+                    Text('Oyun mühürlendi',
+                        style: Theme.of(context).textTheme.headlineMedium),
+                    Text('Sandık kapanıyor…',
+                        style: Theme.of(context).textTheme.bodyMedium),
+                    TextButton(
+                      onPressed: () => setState(() => _sealed = false),
+                      child: const Text('Oyumu değiştir'),
+                    ),
+                  ] else ...[
                     PlayerNameGrid(
                       targets: me.targets,
                       selectedId: _pending,
@@ -74,7 +87,10 @@ class _VoteScreenState extends State<VoteScreen> {
                           ? null
                           : () {
                               context.read<GameProvider>().sendVote(_pending!);
-                              setState(() {});
+                              setState(() {
+                                _sealed = true;
+                                _pending = null;
+                              });
                             },
                     ),
                   ],

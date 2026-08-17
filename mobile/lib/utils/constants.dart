@@ -23,8 +23,8 @@ String roleEmoji(Role role) => switch (role) {
 class PhaseDurations {
   static const night = Duration(seconds: 60);
   static const dawn = Duration(seconds: 10);
-  static const day = Duration(seconds: 90);
-  static const vote = Duration(seconds: 60);
+  static const day = Duration(seconds: 30);
+  static const vote = Duration(seconds: 30);
   static const execution = Duration(seconds: 10);
 }
 

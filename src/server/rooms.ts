@@ -200,7 +200,15 @@ export class Room {
           } else if (n.saved) {
             this.announce("dawn", "Şafak söktü. Doktor bu gece bir can kurtardı!");
           } else {
-            this.announce("dawn", "Şafak söktü. Köy sakin bir gece geçirdi.");
+            // Sakin gece her sabah aynı cümleyle ilan edilmesin (köy dedikodusu tonu).
+            const quiet = [
+              "Şafak söktü. Köy sakin bir gece geçirdi… şimdilik.",
+              "Şafak söktü. Horozlar öttü, kimse eksik değil. Ama vampir hâlâ aramızda.",
+              "Şafak söktü. Bu gece kan dökülmedi — belki de vampir izini kaybettirmek istedi.",
+              "Şafak söktü. Köy meydanı sessiz… fazla sessiz.",
+              "Şafak söktü. Herkes yerinde. Peki gece kimin kapısı gıcırdadı?",
+            ];
+            this.announce("dawn", quiet[s.round % quiet.length]!);
           }
           break;
         }

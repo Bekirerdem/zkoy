@@ -36,7 +36,7 @@ class DayDiscussionScreen extends StatelessWidget {
                     BlockClock(blockHeight: state.height),
                     const SizedBox(height: 16),
                     CountdownTimer(
-                      seconds: state.secondsRemaining,
+                      endsAt: state.endsAt,
                       total: PhaseDurations.day.inSeconds,
                       label: 'TARTIŞMA',
                     ),

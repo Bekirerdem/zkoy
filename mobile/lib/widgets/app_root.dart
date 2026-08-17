@@ -6,6 +6,7 @@ import '../models/role.dart';
 import '../state/game_provider.dart';
 import '../state/session.dart';
 import '../theme/app_theme.dart';
+import 'common/action_flash.dart';
 import '../screens/entry/name_entry_screen.dart';
 import '../screens/lobby/create_join_screen.dart';
 import '../screens/lobby/room_waiting_screen.dart';
@@ -128,7 +129,7 @@ class _AppRootState extends State<AppRoot> {
     return AnimatedTheme(
       data: isDark ? AppTheme.dark : AppTheme.light,
       duration: const Duration(milliseconds: 500),
-      child: child,
+      child: ActionFlash(child: child),
     );
   }
 }

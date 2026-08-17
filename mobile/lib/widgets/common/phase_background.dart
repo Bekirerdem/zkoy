@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -34,19 +35,29 @@ class _Particle {
 
 class _PhaseBackgroundState extends State<PhaseBackground>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 12),
-  )..repeat();
+  // 15fps yeter (ateşböceği ağır süzülür) — 60fps tam-ekran repaint mobil
+  // web'de scroll'u tıkıyordu (17 Ağu saha bulgusu).
+  final ValueNotifier<double> _t = ValueNotifier(0);
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    final start = DateTime.now().millisecondsSinceEpoch;
+    _tick = Timer.periodic(const Duration(milliseconds: 66), (_) {
+      final ms = DateTime.now().millisecondsSinceEpoch - start;
+      _t.value = (ms % 12000) / 12000;
+    });
+  }
 
   late final List<_Particle> _particles = _spawn();
 
   List<_Particle> _spawn() {
     final rnd = math.Random(42); // deterministik: her açılışta aynı gökyüzü
     final count = switch (widget.mood) {
-      PhaseMood.ghost => 7,
-      PhaseMood.role => 12,
-      _ => 14,
+      PhaseMood.ghost => 5,
+      PhaseMood.role => 9,
+      _ => 9,
     };
     return List.generate(count, (i) {
       return _Particle(
@@ -65,7 +76,8 @@ class _PhaseBackgroundState extends State<PhaseBackground>
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _tick?.cancel();
+    _t.dispose();
     super.dispose();
   }
 
@@ -80,11 +92,11 @@ class _PhaseBackgroundState extends State<PhaseBackground>
         DecoratedBox(decoration: BoxDecoration(gradient: _gradient(accent))),
         RepaintBoundary(
           child: IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _ctrl,
-              builder: (_, __) => CustomPaint(
+            child: ValueListenableBuilder<double>(
+              valueListenable: _t,
+              builder: (_, t, __) => CustomPaint(
                 painter: _ParticlePainter(
-                  t: _ctrl.value,
+                  t: t,
                   mood: widget.mood,
                   accent: accent,
                   particles: _particles,
@@ -188,13 +200,19 @@ class _ParticlePainter extends CustomPainter {
         PhaseMood.ghost => const Color(0xFF9BA7D9),
         _ => accent,
       };
-      paint.color = color.withValues(alpha: opacity.clamp(0.0, 1.0));
+      final alpha = opacity.clamp(0.0, 1.0);
+      final center = Offset(x * size.width, y * size.height);
       if (mood == PhaseMood.ghost) {
-        paint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+        // MaskFilter blur mobil web'de çok pahalı — yumuşaklığı iç içe
+        // halkalarla taklit et (scroll janki bulgusu, 17 Ağu).
+        for (var ring = 3; ring >= 1; ring--) {
+          paint.color = color.withValues(alpha: alpha / ring);
+          canvas.drawCircle(center, p.size * ring / 3, paint);
+        }
       } else {
-        paint.maskFilter = null;
+        paint.color = color.withValues(alpha: alpha);
+        canvas.drawCircle(center, p.size, paint);
       }
-      canvas.drawCircle(Offset(x * size.width, y * size.height), p.size, paint);
     }
   }
 

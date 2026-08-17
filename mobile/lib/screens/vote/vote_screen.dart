@@ -47,7 +47,7 @@ class _VoteScreenState extends State<VoteScreen> {
                 child: Column(
                   children: [
                     CountdownTimer(
-                      seconds: state.secondsRemaining,
+                      endsAt: state.endsAt,
                       total: PhaseDurations.vote.inSeconds,
                       label: 'OYLAMA',
                     ),
@@ -66,6 +66,18 @@ class _VoteScreenState extends State<VoteScreen> {
                       'Kimi asalım?',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
+                    if (gp.suspicionRound == state.round &&
+                        gp.suspicionId != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '🔍 Gece şüphen: '
+                        '${state.players.where((p) => p.id == gp.suspicionId).map((p) => p.name).join()}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (_sealed || me.acted) ...[
                       const Text('🗳️', style: TextStyle(fontSize: 44)),

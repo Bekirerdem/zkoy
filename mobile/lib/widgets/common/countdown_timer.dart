@@ -2,17 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-/// Sunucudan gelen [seconds] değerini gösterir, iki poll arasında akıcı
-/// görünmesi için yerel olarak da saniyede bir azaltır (server-authoritative:
-/// her yeni state geldiğinde [didUpdateWidget] ile resenkronize olur).
+/// Sunucunun verdiği bitiş anından (epoch ms) geriye sayar. Tek doğruluk
+/// kaynağı `endsAt` — yerel tik + poll resenkronu karışımı sayaçta
+/// "bir hızlı bir yavaş" titremesi yapıyordu (17 Ağu saha bulgusu);
+/// artık her çeyrek saniyede kalan süre doğrudan hesaplanır.
 class CountdownTimer extends StatefulWidget {
-  final int seconds;
+  final int? endsAt; // epoch ms; null → sayaç gizlenir
   final int total;
   final String? label;
 
   const CountdownTimer({
     super.key,
-    required this.seconds,
+    required this.endsAt,
     required this.total,
     this.label,
   });
@@ -22,29 +23,15 @@ class CountdownTimer extends StatefulWidget {
 }
 
 class _CountdownTimerState extends State<CountdownTimer> {
-  late int _local = widget.seconds;
   Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
-    _startTicker();
-  }
-
-  void _startTicker() {
-    _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() => _local = (_local - 1).clamp(0, widget.total));
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant CountdownTimer old) {
-    super.didUpdateWidget(old);
-    // Her poll'da sunucuya KOŞULSUZ resenkron — prop kıyası, iki poll aynı
-    // değeri getirince sayaç yerel değerde donuyordu (17 Ağu sınıf bulgusu).
-    _local = widget.seconds;
+    _ticker = Timer.periodic(
+      const Duration(milliseconds: 250),
+      (_) => mounted ? setState(() {}) : null,
+    );
   }
 
   @override
@@ -53,10 +40,20 @@ class _CountdownTimerState extends State<CountdownTimer> {
     super.dispose();
   }
 
+  int get _remaining {
+    final e = widget.endsAt;
+    if (e == null) return 0;
+    final ms = e - DateTime.now().millisecondsSinceEpoch;
+    return (ms / 1000).ceil().clamp(0, 9999);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ratio = widget.total == 0 ? 0.0 : (_local / widget.total).clamp(0, 1);
-    final urgent = _local <= 10;
+    final left = _remaining;
+    final ratio = widget.total == 0
+        ? 0.0
+        : (left / widget.total).clamp(0.0, 1.0);
+    final urgent = left <= 10;
     final color = urgent
         ? Colors.redAccent
         : Theme.of(context).colorScheme.primary;
@@ -74,12 +71,12 @@ class _CountdownTimerState extends State<CountdownTimer> {
           const SizedBox(height: 10),
         ],
         Text(
-          '$_local',
+          '$left',
           style: Theme.of(
             context,
           ).textTheme.displayLarge?.copyWith(color: color, fontSize: 56),
         ),
-        if (_local == 0)
+        if (left == 0)
           Text(
             'faz kapanıyor…',
             style: Theme.of(
@@ -93,7 +90,7 @@ class _CountdownTimerState extends State<CountdownTimer> {
             height: 10,
             width: 220,
             child: LinearProgressIndicator(
-              value: ratio.toDouble(),
+              value: ratio,
               backgroundColor: color.withValues(alpha: 0.15),
               valueColor: AlwaysStoppedAnimation(color),
             ),

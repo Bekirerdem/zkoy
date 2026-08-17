@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/role.dart';
+import '../../models/room_state.dart';
 import '../../state/game_provider.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common/countdown_timer.dart';
@@ -72,7 +73,7 @@ class _NightActionScreenState extends State<NightActionScreen> {
                 child: Column(
                   children: [
                     CountdownTimer(
-                      seconds: state.secondsRemaining,
+                      endsAt: state.endsAt,
                       total: PhaseDurations.night.inSeconds,
                       label: 'GECE',
                     ),
@@ -83,12 +84,54 @@ class _NightActionScreenState extends State<NightActionScreen> {
                     ),
                     const SizedBox(height: 20),
                     if (role == null || !role.hasNightAction) ...[
-                      const Text('😴', style: TextStyle(fontSize: 56)),
-                      const SizedBox(height: 16),
+                      // Köylü gecesi: pasif değil — bilgi + şüphe + vasiyet.
                       Text(
-                        'Gözlerini kapat, köy şimdi uyuyor. Sabah tekrar açacaksın.',
+                        'Sen uyurken köy dönüyor:\n'
+                        '🧛 vampir avlanıyor · 💊 doktor nöbette · 🕵️ gözcü iz sürüyor',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      if (state.lastDawn != null) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          '🌅 Dün: ${state.lastDawn!.text}',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      Text(
+                        '🔍 Şüpheni işaretle',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(
+                        'Kimse görmez — sabah oylamada sana hatırlatılır.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      PlayerNameGrid(
+                        targets: [
+                          for (final p in state.players)
+                            if (p.alive && p.id != me.id)
+                              Target(id: p.id, name: p.name),
+                        ],
+                        selectedId: gp.suspicionRound == state.round
+                            ? gp.suspicionId
+                            : null,
+                        onSelect: (id) =>
+                            gp.markSuspicion(id, state.round),
+                      ),
+                      const SizedBox(height: 18),
+                      TextButton.icon(
+                        icon: const Icon(Icons.edit_note_rounded),
+                        label: const Text(
+                          'Vasiyetini yaz — ölürsen perdeye düşer',
+                        ),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const WillEditorScreen(),
+                          ),
+                        ),
                       ),
                     ] else ...[
                       if (_sealed || me.acted) ...[

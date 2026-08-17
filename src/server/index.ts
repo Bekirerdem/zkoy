@@ -217,15 +217,16 @@ async function handle(req: Request): Promise<Response> {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
-    // GET /app/* — Flutter web build'i (PWA); telefonlar tarayıcıdan oynar.
-    // index.html + service worker taze kalır; ağır varlıklar (canvaskit ~7MB,
-    // main.dart.js) bir gün önbelleklenir — tekrar açılışlar anında olur.
+    // GET /app/* — Flutter web build'i; telefonlar tarayıcıdan oynar.
+    // Service worker YOK (--pwa-strategy=none — eski sürüm inadı bitirildi,
+    // 17 Ağu). Değişken dosyalar (index + kök .js) hep taze; ağır ve
+    // build'ler arası sabit varlıklar (canvaskit, fontlar) bir gün önbellekli.
     if (req.method === "GET" && parts[0] === "app") {
       const rel = parts.slice(1).join("/") || "index.html";
-      const fresh =
-        rel === "index.html" || rel === "flutter_service_worker.js";
+      const mutable =
+        parts.length <= 2 && (rel === "index.html" || rel.endsWith(".js") || rel.endsWith(".json"));
       const cache = {
-        "Cache-Control": fresh ? "no-cache" : "public, max-age=86400",
+        "Cache-Control": mutable ? "no-cache" : "public, max-age=86400",
       };
       const file = Bun.file(`${WEB_DIR}/${rel}`);
       if (await file.exists()) return new Response(file, { headers: cache });

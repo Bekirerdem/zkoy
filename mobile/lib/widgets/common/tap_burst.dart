@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Dokunuş geri bildirimi: basınca hafif küçülme + dokunulan noktadan
 /// büyüyüp sönen halka ve saçılan mini kıvılcımlar.
@@ -61,6 +62,7 @@ class _TapBurstState extends State<TapBurst> with TickerProviderStateMixin {
     return Listener(
       onPointerDown: widget.enabled
           ? (e) {
+              HapticFeedback.lightImpact();
               setState(() => _pressed = true);
               _spawn(e.localPosition);
             }

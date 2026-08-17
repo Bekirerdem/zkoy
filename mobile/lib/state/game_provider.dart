@@ -22,6 +22,21 @@ class GameProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
 
+  /// Her başarılı aksiyonda artar — AppRoot bunun değişimini yakalayıp
+  /// ekranda kaçırılamaz bir ✓ patlaması gösterir ("tıkladım mı?" bitti).
+  int actionFlashTick = 0;
+
+  /// Köylünün gece işaretlediği şüphe (yerel — sunucuya gitmez);
+  /// oylama ekranında rozet olarak hatırlatılır.
+  String? suspicionId;
+  int? suspicionRound;
+
+  void markSuspicion(String id, int round) {
+    suspicionId = id;
+    suspicionRound = round;
+    notifyListeners();
+  }
+
   String? get code => session.code;
   String? get myPlayerId => session.playerId;
   bool get amHost => session.isCreator;
@@ -113,6 +128,7 @@ class GameProvider extends ChangeNotifier {
         txt: txt,
       );
       error = null;
+      if (type != 'skip') actionFlashTick++;
     } catch (e) {
       error = e.toString();
     }

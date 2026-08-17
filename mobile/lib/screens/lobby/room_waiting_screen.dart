@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -9,6 +10,17 @@ import '../../widgets/common/zkoy_card.dart';
 
 class RoomWaitingScreen extends StatelessWidget {
   const RoomWaitingScreen({super.key});
+
+  /// Web'de QR bir katılım linki kodlar: oyuncu telefon KAMERASIYLA okutur,
+  /// uygulama ?join=KOD ile açılıp kodu hazır getirir. Native'de düz kod
+  /// (uygulama içi okuyucu her ikisini de çözer).
+  String _qrData(String? code) {
+    if (code == null) return '';
+    if (kIsWeb && Uri.base.scheme.startsWith('http')) {
+      return Uri.base.replace(query: 'join=$code').toString();
+    }
+    return code;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +65,7 @@ class RoomWaitingScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: QrImageView(
-                      data: gp.code ?? '',
+                      data: _qrData(gp.code),
                       size: 160,
                       backgroundColor: Colors.white,
                     ),

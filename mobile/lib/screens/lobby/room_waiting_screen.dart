@@ -26,7 +26,9 @@ class RoomWaitingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gp = context.watch<GameProvider>();
     final state = gp.state!;
-    final isHost = gp.amHost;
+    // Host'un tek doğruluk kaynağı SUNUCU (ilk katılan) — istemcideki
+    // "ben kurdum" bayrağı, oda dışarıdan (API/ebe) kurulunca yanılıyordu.
+    final isHost = (state.me?.isHost ?? false) || gp.amHost;
     final myTier = state.me != null ? TierX.fromInt(state.me!.tier) : null;
 
     return Scaffold(

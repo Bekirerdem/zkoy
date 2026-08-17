@@ -258,7 +258,9 @@ async function handle(req: Request): Promise<Response> {
   }
 }
 
-Bun.serve({ port: PORT, fetch: handle });
+// Cüzdan üretimi/mühürleme anlarında istekler 10sn'lik varsayılan sınırı
+// aşabiliyor (17 Ağu: ECONNRESET'lerin bir kaynağı buydu) — payı geniş tut.
+Bun.serve({ port: PORT, fetch: handle, idleTimeout: 60 });
 console.log(
   `ZKöy sunucu ayakta: http://localhost:${PORT} (zincir: ${zcash.kind})`,
 );

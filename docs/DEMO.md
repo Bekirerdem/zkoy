@@ -10,8 +10,14 @@ $env:ZKOY_CHAIN = "zingo"; bun run src/server/index.ts
 # 2. Tünel (ayrı terminal) — çıkan https linki oyuncu linkidir:
 cloudflared tunnel --url http://localhost:3131
 
-# 3. Kontrol: <link>/app/ telefonda açılıyor mu, <link> kök sayfası geliyor mu.
+# 3. Öncelik gözcüsü (ayrı gizli pencere; ZK proving sayaçları geciktirmesin):
+powershell -WindowStyle Hidden -NoProfile -Command "while ($true) { Get-Process zingo-cli -ErrorAction SilentlyContinue | %% { try { $_.PriorityClass = 'BelowNormal' } catch {} }; Start-Sleep -Seconds 5 }"
+
+# 4. Kontrol: <link>/app/ telefonda açılıyor mu, <link> kök sayfası geliyor mu.
 ```
+
+Tempo: fazlar 60/10/90/60/10 sn (env ile ayarlanabilir) + kurucu telefonunda
+"Oylamaya Geç" butonu — tartışma erken bittiyse sayaç beklenmez.
 
 - Salon internetsiz kalırsa YEDEK: telefonlar laptop Wi-Fi'ına, link `http://<laptop-IP>:3131/app/`
   (QR kamera http'de çalışmaz → kod elle girilir; oyun aynen akar).

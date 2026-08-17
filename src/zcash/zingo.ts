@@ -55,27 +55,10 @@ export function extractLastJson(out: string): unknown {
   return best;
 }
 
-/**
- * ZK proving tüm çekirdekleri doyurup sunucu sayaçlarını geciktiriyor ve
- * bağlantı resetlerine yol açıyordu (17 Ağu saha bulgusu) — zingo süreçleri
- * düşük öncelikte koşar, oyun temposu mühürlemeye kurban gitmez.
- */
-function deprioritize(pid: number | undefined) {
-  if (!pid) return;
-  try {
-    Bun.spawn(
-      [
-        "powershell",
-        "-NoProfile",
-        "-Command",
-        `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).PriorityClass='BelowNormal'`,
-      ],
-      { stdout: "ignore", stderr: "ignore" },
-    );
-  } catch {
-    // öncelik düşmezse oyun yine oynanır, sadece sayaçlar gecikebilir
-  }
-}
+// NOT (17 Ağu): zingo süreçlerinin önceliği, istek yolunu asan per-spawn
+// PowerShell yerine sunucudan bağımsız bir gözcü döngüyle düşürülür
+// (bkz. docs/DEMO.md — "öncelik gözcüsü"). ZK proving aksi halde tüm
+// çekirdekleri doyurup faz sayaçlarını geciktiriyor.
 
 /** One in-flight process per data-dir — zingo wallets are single-writer. */
 const locks = new Map<string, Promise<unknown>>();
@@ -92,7 +75,6 @@ async function runOffline(dataDir: string, cmd: string[]): Promise<unknown> {
       [ZINGO, "--chain", "testnet", "--data-dir", dataDir, "--offline", ...cmd],
       { stdout: "pipe", stderr: "pipe" },
     );
-    deprioritize(p.pid);
     const out = await new Response(p.stdout).text();
     const err = await new Response(p.stderr).text();
     if ((await p.exited) !== 0)
@@ -120,7 +102,6 @@ async function runOnlineSession(
       [ZINGO, "--chain", "testnet", "--server", SERVER, "--data-dir", dataDir],
       { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
     );
-    deprioritize(p.pid);
     const killer = setTimeout(() => p.kill(), timeoutMs);
     const decoder = new TextDecoder();
     let errBuf = "";
@@ -312,7 +293,6 @@ export class ZingoService implements ZcashService {
         ],
         { stdout: "pipe", stderr: "pipe" },
       );
-      deprioritize(p.pid);
       const text = await new Response(p.stdout).text();
       await p.exited;
       return text;

@@ -81,6 +81,7 @@ function statePayload(room: Room, token: string | null, height: number) {
       role: me.role,
       alive: me.alive,
       tier: me.tier,
+      isHost: me.id === room.hostPlayerId,
       will: me.will,
       acted:
         s.phase === "NIGHT"
@@ -167,11 +168,11 @@ async function handle(req: Request): Promise<Response> {
           txt?: string;
         };
         if (!body.token || !body.type) throw new EngineError("token ve type gerekli");
-        if (!["night", "vote", "gvote", "will"].includes(body.type))
+        if (!["night", "vote", "gvote", "will", "skip"].includes(body.type))
           throw new EngineError(`bilinmeyen aksiyon: ${body.type}`);
         room.action(
           body.token,
-          body.type as "night" | "vote" | "gvote" | "will",
+          body.type as "night" | "vote" | "gvote" | "will" | "skip",
           body.target,
           body.txt,
         );

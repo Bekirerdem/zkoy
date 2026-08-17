@@ -19,11 +19,11 @@ function envMs(name: string, fallback: number): number {
 }
 
 const DEFAULT_DURATIONS: PhaseDurations = {
-  NIGHT: envMs("ZKOY_T_NIGHT", 75_000),
-  DAWN: envMs("ZKOY_T_DAWN", 12_000),
-  DAY: envMs("ZKOY_T_DAY", 120_000),
-  VOTE: envMs("ZKOY_T_VOTE", 75_000),
-  EXECUTION: envMs("ZKOY_T_EXECUTION", 12_000),
+  NIGHT: envMs("ZKOY_T_NIGHT", 60_000),
+  DAWN: envMs("ZKOY_T_DAWN", 10_000),
+  DAY: envMs("ZKOY_T_DAY", 90_000),
+  VOTE: envMs("ZKOY_T_VOTE", 60_000),
+  EXECUTION: envMs("ZKOY_T_EXECUTION", 10_000),
 };
 
 const MIN_PLAYERS = Number(process.env.ZKOY_MIN_PLAYERS ?? engine.MIN_PLAYERS);
@@ -69,6 +69,9 @@ export class Room {
     this.zcash.seal(this.state.code, events);
   }
 
+  /** İlk katılan = ebe/kurucu (odayı kuran kişi kurup hemen katılır). */
+  hostPlayerId: string | null = null;
+
   async join(name: string, tier: Tier) {
     const playerId = `p${this.state.players.length}-${crypto.randomUUID().slice(0, 8)}`;
     const salt = crypto.randomUUID();
@@ -78,6 +81,7 @@ export class Room {
     me.tierSalt = salt; // server keeps the salt; revealed at END (cam ebe)
     const token = crypto.randomUUID();
     this.tokens.set(token, playerId);
+    this.hostPlayerId ??= playerId;
     const playerAddress = await this.zcash.createPlayerWallet(
       this.state.code,
       playerId,
@@ -111,11 +115,22 @@ export class Room {
 
   action(
     token: string,
-    type: "night" | "vote" | "gvote" | "will",
+    type: "night" | "vote" | "gvote" | "will" | "skip",
     target?: string,
     txt?: string,
   ) {
     const pid = this.playerId(token);
+    // Ebe-geçişi: kurucu, sayaç beklemeden bekleme fazlarını ilerletir
+    // (salon temposu — tartışma erken bittiyse oylamaya geçilir).
+    if (type === "skip") {
+      if (pid !== this.hostPlayerId)
+        throw new engine.EngineError("fazı yalnız kurucu geçirebilir");
+      const p = this.state.phase;
+      if (p !== "DAWN" && p !== "DAY" && p !== "EXECUTION")
+        throw new engine.EngineError("bu faz elle geçilmez");
+      this.resolvePhase();
+      return;
+    }
     let events: MemoEvent[] = [];
     switch (type) {
       case "night":

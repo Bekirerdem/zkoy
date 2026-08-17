@@ -129,7 +129,14 @@ class GameProvider extends ChangeNotifier {
       error = null;
       notifyListeners();
     } catch (e) {
-      error = e.toString();
+      final msg = e.toString();
+      // Oda sunucuda artık yoksa (sunucu yeniden başladı vb.) oturumu
+      // temizleyip lobiye dön — sonsuz hata döngüsünde mahsur kalma.
+      if (msg.contains('oda yok') || msg.contains('geçersiz token')) {
+        await leaveRoom();
+        return;
+      }
+      error = msg;
       notifyListeners();
     }
   }

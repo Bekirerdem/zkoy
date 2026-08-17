@@ -33,11 +33,23 @@ class _AppRootState extends State<AppRoot> {
   String? _introForCode;
   bool _roleAssignSeen = false;
   bool _roleCardSeen = false;
+  Phase? _lastPhase;
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
     final gp = context.watch<GameProvider>();
+
+    // Faz değişiminde üstte push'lu kalmış rotaları (vasiyet editörü vb.)
+    // kapat — router alttaki ekranı değiştirir ama push'lu rota kendiliğinden
+    // düşmez, oyuncu eski ekranda mahsur kalır.
+    final phase = gp.state?.phase;
+    if (phase != _lastPhase) {
+      _lastPhase = phase;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      });
+    }
 
     if (session.name == null || session.name!.trim().isEmpty) {
       return const NameEntryScreen();

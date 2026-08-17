@@ -43,6 +43,14 @@ zingo-cli.exe --chain testnet --server https://testnet.zec.rocks:443 `
 
 → tüm oylar/hamleler JSON olarak dökülür. "Ebe merkeziydi ama CAM'dı — sözünü zincir tuttu."
 
+**An 2.5 (opsiyonel, güçlü):** Jüriden birinin telefonunda Ywallet varsa perdeki UFVK'yı
+izleme cüzdanı olarak import ettir (Ywallet → hesap ekle → view key, testnet) —
+oyunun tüm defteri ADAMIN KENDİ CÜZDANINDA açılır. "Cüzdan entegrasyonu" sorusunun
+Zcash'teki gerçek cevabı bu: bağlantı protokolü yok, GÖRÜŞ ANAHTARI var.
+Not: cüzdan bağlama/self-custody sorusu gelirse → kontratsız zincirde dApp-cüzdan
+köprüsü diye bir katman yok; ZIP-321 ile kendi cüzdanından katılım yol haritasının
+1. basamağı (SPEC §6).
+
 ## Bilinen huylar / hızlı çözümler
 
 | Belirti | Sebep | Çözüm |

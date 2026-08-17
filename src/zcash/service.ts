@@ -31,6 +31,8 @@ export interface ZcashService {
   seal(code: string, events: MemoEvent[]): void;
   /** Everything sealed so far for the audit timeline (txids + status). */
   sealed(code: string): SealedMemo[];
+  /** Kuyrukta bekleyen (henüz zincire oturmamış) memo olayları. */
+  pendingEvents(code: string): MemoEvent[];
   /** Read the room account's memo feed (ghost view / audit). */
   readRoomMemos(code: string): Promise<string[]>;
   /** Last known chain height — the village clock tower (SPEC Ö5). */

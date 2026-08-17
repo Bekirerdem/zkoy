@@ -198,6 +198,12 @@ export class ZingoService implements ZcashService {
     return this.log.get(code) ?? [];
   }
 
+  pendingEvents(code: string): MemoEvent[] {
+    return this.pending
+      .filter((p) => p.code === code)
+      .flatMap((p) => p.events);
+  }
+
   /** Drain the queue: one multi-receiver quicksend per room batch, retried. */
   private async flush(): Promise<void> {
     if (this.flushing) return;

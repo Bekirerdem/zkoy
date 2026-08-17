@@ -36,6 +36,10 @@ export class MockZcashService implements ZcashService {
     return this.log.get(code) ?? [];
   }
 
+  pendingEvents(_code: string): MemoEvent[] {
+    return []; // mock anında "mühürler" — kuyruk yok
+  }
+
   async readRoomMemos(code: string): Promise<string[]> {
     return (this.log.get(code) ?? [])
       .flatMap((s) => s.events)

@@ -189,11 +189,27 @@ async function handle(req: Request): Promise<Response> {
             commit: p.tierCommit,
             role: p.role,
           })),
-          timeline: zcash.sealed(room.state.code).map((b) => ({
-            txid: b.txid,
-            at: b.at,
-            memos: b.events.map((e) => e.memo),
-          })),
+          timeline: [
+            ...zcash.sealed(room.state.code).map((b) => ({
+              txid: b.txid,
+              at: b.at,
+              memos: b.events.map((e) => e.memo),
+            })),
+            // Kuyruktakiler de dökümde görünsün — oyun verisi zinciri
+            // BEKLEMEZ; mühür oturunca txid'si gelir (17 Ağu dersi).
+            ...(() => {
+              const pending = zcash.pendingEvents(room.state.code);
+              return pending.length > 0
+                ? [
+                    {
+                      txid: "mühürleniyor…",
+                      at: Date.now(),
+                      memos: pending.map((e) => e.memo),
+                    },
+                  ]
+                : [];
+            })(),
+          ],
         });
       }
     }

@@ -10,6 +10,7 @@ import { screenHtml } from "./screen";
 
 const PORT = Number(process.env.ZKOY_PORT ?? 3131);
 const WEB_DIR = process.env.ZKOY_WEB_DIR ?? "mobile/build/web";
+let qrLibCache: string | null = null;
 const zcash =
   process.env.ZKOY_CHAIN === "zingo" ? new ZingoService() : new MockZcashService();
 const registry = new RoomRegistry(zcash);
@@ -194,6 +195,19 @@ async function handle(req: Request): Promise<Response> {
           })),
         });
       }
+    }
+    // GET /qr.js — qrcode-generator'ı tarayıcı globali olarak sarmalayıp servis et
+    // (perde LOBBY'de katılım QR'ını kendisi çizer; link rotasyonuna bağışık).
+    if (req.method === "GET" && url.pathname === "/qr.js") {
+      if (!qrLibCache) {
+        const lib = await Bun.file(
+          "node_modules/qrcode-generator/dist/qrcode.js",
+        ).text();
+        qrLibCache = `(function(){var exports={};var module={exports:exports};\n${lib}\nwindow.qrcode=module.exports;})();`;
+      }
+      return new Response(qrLibCache, {
+        headers: { "Content-Type": "application/javascript" },
+      });
     }
     // GET / — karşılama: durum + uygulama/perde kapıları.
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "")) {

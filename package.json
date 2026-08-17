@@ -7,5 +7,8 @@
     "dev": "bun run --watch src/server/index.ts",
     "start": "bun run src/server/index.ts",
     "test": "bun test"
+  },
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
   }
 }

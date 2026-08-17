@@ -73,6 +73,11 @@ export function screenHtml(code: string): string {
   }
   .will::before { content: "vasiyet — “"; color: var(--ash); font-style: normal; }
   .will::after { content: "”"; color: var(--ash); }
+  #joinbox { display: none; text-align: center; margin: 1vh auto 0; }
+  #joinbox.show { display: block; }
+  #joinqr svg { background: #fff; border-radius: 10px; width: min(34vh, 60vw); height: auto; }
+  .joinhint { margin-top: 1.2vh; color: var(--ash); font-size: 1.05rem; letter-spacing: 0.08em; }
+  .joinhint b { color: var(--lamp); }
   #votebar { margin-top: 2.5vh; color: var(--ash); font-size: 1.15rem; letter-spacing: 0.1em; }
   #votebar b {
     display: inline-block; min-width: 2ch; color: var(--lamp);
@@ -140,6 +145,10 @@ export function screenHtml(code: string): string {
   <main>
     <div id="phase">—</div>
     <div id="timer"></div>
+    <div id="joinbox">
+      <div id="joinqr"></div>
+      <div class="joinhint">telefon kamerasıyla okut · ya da <b>/app</b> → kod: <b>${code}</b></div>
+    </div>
     <div id="ann"></div>
     <div id="votebar"></div>
     <div id="players"></div>
@@ -157,8 +166,21 @@ export function screenHtml(code: string): string {
     <div>her sır bir Zcash memo'sunda mühürlü</div>
     <div>oda <b style="color:var(--parchment)">${code}</b> · anahtar oyun sonunda perdeye düşer</div>
   </footer>
+<script src="/qr.js"></script>
 <script>
 const CODE = ${JSON.stringify(code)};
+let qrDrawn = false;
+function drawJoinQr() {
+  if (qrDrawn || typeof qrcode === "undefined") return;
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(location.origin + "/app/?join=" + CODE);
+    qr.make();
+    document.getElementById("joinqr").innerHTML =
+      qr.createSvgTag({ cellSize: 6, margin: 3 });
+    qrDrawn = true;
+  } catch (e) { /* qr çizilemezse kod elle girilir */ }
+}
 const PHASE_TR = {
   LOBBY: "KÖY MEYDANI", NIGHT: "GECE", DAWN: "ŞAFAK", DAY: "GÜNDÜZ",
   VOTE: "OYLAMA", EXECUTION: "İNFAZ", END: "OYUN BİTTİ"
@@ -204,6 +226,8 @@ async function poll() {
 
   setPhase(s.phase);
   endsAt = s.endsAt;
+  document.getElementById("joinbox").classList.toggle("show", s.phase === "LOBBY");
+  if (s.phase === "LOBBY") drawJoinQr();
   document.getElementById("height").textContent = s.height || "—";
   document.getElementById("round").textContent = s.round;
   document.getElementById("pot").textContent = (s.potZats / 1e8).toFixed(4) + " TAZ";

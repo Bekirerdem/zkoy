@@ -1,0 +1,4 @@
+node_modules/
+.zingo-cli/
+mobile/build/
+*.log

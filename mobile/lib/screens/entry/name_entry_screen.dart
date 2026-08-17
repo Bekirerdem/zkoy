@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/session.dart';
+import '../../utils/constants.dart';
 import '../../widgets/common/zkoy_button.dart';
 
 class NameEntryScreen extends StatefulWidget {
@@ -29,6 +30,16 @@ class _NameEntryScreenState extends State<NameEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            'sürüm: $kBuildStamp',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

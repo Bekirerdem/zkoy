@@ -33,3 +33,8 @@ class GameConfig {
   static const maxPlayers = 15;
   static const pollInterval = Duration(milliseconds: 1500);
 }
+
+/// Hangi build'in yüklü olduğunu ekranda tartışmasız gösterir
+/// (service worker eski sürümü tutabiliyor). Build komutunda
+/// `--dart-define=BUILD_STAMP=...` ile basılır.
+const String kBuildStamp = String.fromEnvironment('BUILD_STAMP', defaultValue: 'dev');

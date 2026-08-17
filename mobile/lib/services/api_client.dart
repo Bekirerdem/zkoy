@@ -38,8 +38,12 @@ abstract class ApiClient {
   Future<void> sendAction({
     required String code,
     required String token,
-    required String type, // night|vote|gvote|will
+    required String type, // night|vote|gvote|will|skip
     String? target,
     String? txt,
   });
+
+  /// İfşa partisi "oyun dökümü": mühürlerin çözülmüş memo listesi
+  /// (POST /room/:code/reveal → timeline[].memos düzleştirilmiş).
+  Future<List<Map<String, dynamic>>> revealMemos(String code);
 }

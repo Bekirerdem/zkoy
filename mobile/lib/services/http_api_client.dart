@@ -75,6 +75,18 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> revealMemos(String code) async {
+    final j = await _decode(http.post(_u('/room/$code/reveal')));
+    final timeline = (j['timeline'] as List? ?? []);
+    return timeline
+        .expand(
+          (b) => ((b as Map<String, dynamic>)['memos'] as List? ?? [])
+              .map((m) => m as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  @override
   Future<void> sendAction({
     required String code,
     required String token,

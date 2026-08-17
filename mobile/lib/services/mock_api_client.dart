@@ -545,6 +545,12 @@ class MockApiClient implements ApiClient {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> revealMemos(String code) async {
+    // Mock modda döküm yok — gerçek sunucu (docs/API.md) timeline döndürür.
+    return const [];
+  }
+
+  @override
   Future<void> sendAction({
     required String code,
     required String token,

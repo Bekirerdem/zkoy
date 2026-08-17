@@ -5,6 +5,7 @@ import { Tier } from "../engine/types";
 import { MockZcashService } from "../zcash/mock";
 import { ZingoService } from "../zcash/zingo";
 import { Room, RoomRegistry } from "./rooms";
+import { landingHtml } from "./landing";
 import { screenHtml } from "./screen";
 
 const PORT = Number(process.env.ZKOY_PORT ?? 3131);
@@ -194,6 +195,13 @@ async function handle(req: Request): Promise<Response> {
         });
       }
     }
+    // GET / — karşılama: durum + uygulama/perde kapıları.
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
+      const hasApp = await Bun.file(`${WEB_DIR}/index.html`).exists();
+      return new Response(landingHtml(zcash.kind, hasApp), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
     // GET /app/* — Flutter web build'i (PWA); telefonlar tarayıcıdan oynar.
     if (req.method === "GET" && parts[0] === "app") {
       const rel = parts.slice(1).join("/") || "index.html";
@@ -210,6 +218,12 @@ async function handle(req: Request): Promise<Response> {
       return new Response(screenHtml(parts[1].toUpperCase()), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
+    }
+    // Son çare: Flutter build'i base href="/" ile geldiyse asset'ler kökten
+    // istenir — WEB_DIR'de birebir karşılığı olan dosyayı servis et.
+    if (req.method === "GET" && !url.pathname.includes("..")) {
+      const asset = Bun.file(`${WEB_DIR}${url.pathname}`);
+      if (await asset.exists()) return new Response(asset);
     }
     return json({ error: "yol yok" }, 404);
   } catch (e) {

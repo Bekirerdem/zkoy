@@ -149,6 +149,7 @@ export function screenHtml(code: string): string {
         <table id="payouts"><caption>KAZANANLAR DEFTERİ</caption></table>
         <table id="reveals"><caption>KADEME TAAHHÜTLERİ</caption></table>
       </div>
+      <div class="ledger" style="margin-top:2vh"><table id="seals"><caption>MÜHÜR DEFTERİ — ZİNCİR KANITLARI</caption></table></div>
       <div id="ufvk"></div>
     </div>
   </main>
@@ -238,7 +239,31 @@ async function poll() {
         '</td><td class="seal-ok">' + p.commit.slice(0, 12) + "… ✓</td></tr>").join("");
     document.getElementById("ufvk").innerHTML =
       "<em>ODA GÖRÜŞ ANAHTARI — BAĞIMSIZ DOĞRULAYIN</em>" + esc(s.end.ufvk);
+    loadSeals();
   }
+}
+
+let sealsLoaded = false;
+async function loadSeals() {
+  if (sealsLoaded) return;
+  sealsLoaded = true;
+  try {
+    const r = await fetch("/room/" + CODE + "/reveal", { method: "POST" });
+    const rev = await r.json();
+    document.getElementById("seals").innerHTML =
+      "<caption>MÜHÜR DEFTERİ — ZİNCİR KANITLARI</caption>" +
+      "<tr><th>tx</th><th>memo</th><th>içerik</th></tr>" +
+      rev.timeline.map(b => {
+        const types = b.memos.map(m => m.t).join(", ");
+        const link = b.txid.startsWith("mock:")
+          ? esc(b.txid)
+          : '<a href="https://testnet.cipherscan.app/tx/' + esc(b.txid) +
+            '" target="_blank" style="color:var(--lamp)">' + esc(b.txid.slice(0, 14)) + "…</a>";
+        return "<tr><td style='font-family:monospace;font-size:0.8rem'>" + link +
+          "</td><td class='num'>" + b.memos.length + "</td><td style='color:var(--ash);font-size:0.85rem'>" +
+          esc(types) + "</td></tr>";
+      }).join("");
+  } catch { sealsLoaded = false; }
 }
 
 setInterval(() => {

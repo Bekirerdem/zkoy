@@ -29,7 +29,10 @@ class StatusOverlay extends StatelessWidget {
             : LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [color.withValues(alpha: 0.55), color.withValues(alpha: 0.85)],
+                colors: [
+                  color.withValues(alpha: 0.55),
+                  color.withValues(alpha: 0.85),
+                ],
               ),
         color: tone == StatusTone.none ? null : color,
       ),

@@ -15,7 +15,9 @@ class WinnerScreen extends StatelessWidget {
     final gp = context.watch<GameProvider>();
     final state = gp.state!;
     final end = state.end;
-    final myPayout = end?.payouts.where((p) => p.name == state.me?.name).firstOrNull;
+    final myPayout = end?.payouts
+        .where((p) => p.name == state.me?.name)
+        .firstOrNull;
 
     return StatusOverlay(
       tone: StatusTone.winner,
@@ -34,20 +36,18 @@ class WinnerScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       'Kazandın!',
-                      style: Theme.of(context)
-                          .textTheme
-                          .displayLarge
-                          ?.copyWith(color: Colors.white),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.displayLarge?.copyWith(color: Colors.white),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       state.winner == 'koy'
                           ? 'Köy vampirleri temizledi.'
                           : 'Vampirler köyü ele geçirdi.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyLarge
-                          ?.copyWith(color: Colors.white),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(color: Colors.white),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 28),
@@ -59,17 +59,15 @@ class WinnerScreen extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          Text('Pot Payın',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(color: Colors.white)),
+                          Text(
+                            'Pot Payın',
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(color: Colors.white),
+                          ),
                           const SizedBox(height: 8),
                           Text(
                             '${formatZats(myPayout?.zats ?? 0)} TAZ',
-                            style: Theme.of(context)
-                                .textTheme
-                                .displayLarge
+                            style: Theme.of(context).textTheme.displayLarge
                                 ?.copyWith(color: Colors.white, fontSize: 36),
                           ),
                         ],
@@ -80,7 +78,9 @@ class WinnerScreen extends StatelessWidget {
                       label: 'İfşa Partisine Git',
                       color: Colors.black.withValues(alpha: 0.25),
                       onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const RevealPartyScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const RevealPartyScreen(),
+                        ),
                       ),
                     ),
                   ],

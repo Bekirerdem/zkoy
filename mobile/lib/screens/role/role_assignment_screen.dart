@@ -9,9 +9,7 @@ class RoleAssignmentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: CountingAnimation(onDone: onDone),
-      ),
+      body: Center(child: CountingAnimation(onDone: onDone)),
     );
   }
 }

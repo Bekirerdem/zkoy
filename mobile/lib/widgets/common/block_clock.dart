@@ -7,10 +7,10 @@ class BlockClock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context)
-        .textTheme
-        .bodyMedium
-        ?.copyWith(letterSpacing: 0.5, fontFeatures: const [FontFeature.tabularFigures()]);
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      letterSpacing: 0.5,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

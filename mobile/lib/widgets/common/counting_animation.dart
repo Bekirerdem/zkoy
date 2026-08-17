@@ -57,10 +57,9 @@ class _CountingAnimationState extends State<CountingAnimation> {
         const SizedBox(height: 12),
         Text(
           '$_n',
-          style: Theme.of(context)
-              .textTheme
-              .displayLarge
-              ?.copyWith(fontSize: 48),
+          style: Theme.of(
+            context,
+          ).textTheme.displayLarge?.copyWith(fontSize: 48),
         ),
         const SizedBox(height: 18),
         Text(

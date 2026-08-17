@@ -5,6 +5,7 @@ import '../../models/role.dart';
 import '../../state/game_provider.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common/countdown_timer.dart';
+import '../../widgets/common/phase_background.dart';
 import '../../widgets/common/player_name_grid.dart';
 import '../../widgets/common/zkoy_button.dart';
 import '../will/will_editor_screen.dart';
@@ -42,80 +43,95 @@ class _NightActionScreenState extends State<NightActionScreen> {
       _ => 'Köy Uyuyor 🌙',
     };
 
+    final accent = role != null && role.hasNightAction ? roleColor(role) : null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gece'),
+        backgroundColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_note_rounded),
             tooltip: 'Vasiyet',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const WillEditorScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const WillEditorScreen())),
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  CountdownTimer(
-                    seconds: state.secondsRemaining,
-                    total: PhaseDurations.night.inSeconds,
-                    label: 'GECE',
-                  ),
-                  const SizedBox(height: 28),
-                  Text(title, style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(height: 20),
-                  if (role == null || !role.hasNightAction) ...[
-                    const Text('😴', style: TextStyle(fontSize: 56)),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Gözlerini kapat, köy şimdi uyuyor. Sabah tekrar açacaksın.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge,
+      extendBodyBehindAppBar: true,
+      body: PhaseBackground(
+        mood: PhaseMood.night,
+        accent: accent,
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    CountdownTimer(
+                      seconds: state.secondsRemaining,
+                      total: PhaseDurations.night.inSeconds,
+                      label: 'GECE',
                     ),
-                  ] else ...[
-                    if (_sealed || me.acted) ...[
-                      const Text('✅', style: TextStyle(fontSize: 44)),
-                      const SizedBox(height: 8),
-                      Text('Hamlen mühürlendi',
-                          style: Theme.of(context).textTheme.headlineMedium),
-                      Text('Diğerleri bekleniyor…',
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      TextButton(
-                        onPressed: () => setState(() => _sealed = false),
-                        child: const Text('Hamlemi değiştir'),
+                    const SizedBox(height: 28),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 20),
+                    if (role == null || !role.hasNightAction) ...[
+                      const Text('😴', style: TextStyle(fontSize: 56)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Gözlerini kapat, köy şimdi uyuyor. Sabah tekrar açacaksın.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ] else ...[
-                      PlayerNameGrid(
-                        targets: me.targets,
-                        selectedId: _pendingTarget,
-                        onSelect: (id) => setState(() => _pendingTarget = id),
-                      ),
-                      const SizedBox(height: 20),
-                      ZkoyButton(
-                        label: 'Hamleyi Mühürle',
-                        big: true,
-                        onPressed: _pendingTarget == null
-                            ? null
-                            : () {
-                                context
-                                    .read<GameProvider>()
-                                    .sendNight(_pendingTarget!);
-                                setState(() {
-                                  _sealed = true;
-                                  _pendingTarget = null;
-                                });
-                              },
-                      ),
+                      if (_sealed || me.acted) ...[
+                        const Text('✅', style: TextStyle(fontSize: 44)),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Hamlen mühürlendi',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        Text(
+                          'Diğerleri bekleniyor…',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () => setState(() => _sealed = false),
+                          child: const Text('Hamlemi değiştir'),
+                        ),
+                      ] else ...[
+                        PlayerNameGrid(
+                          targets: me.targets,
+                          selectedId: _pendingTarget,
+                          onSelect: (id) => setState(() => _pendingTarget = id),
+                        ),
+                        const SizedBox(height: 20),
+                        ZkoyButton(
+                          label: 'Hamleyi Mühürle',
+                          big: true,
+                          onPressed: _pendingTarget == null
+                              ? null
+                              : () {
+                                  context.read<GameProvider>().sendNight(
+                                    _pendingTarget!,
+                                  );
+                                  setState(() {
+                                    _sealed = true;
+                                    _pendingTarget = null;
+                                  });
+                                },
+                        ),
+                      ],
                     ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

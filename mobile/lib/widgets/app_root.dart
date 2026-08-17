@@ -63,9 +63,7 @@ class _AppRootState extends State<AppRoot> {
     if (state == null) {
       return _themed(
         isDark: false,
-        child: const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        child: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
 
@@ -100,7 +98,8 @@ class _AppRootState extends State<AppRoot> {
     if (state.phase == Phase.end) {
       final alive = state.me?.alive ?? false;
       final myRole = state.me?.role;
-      final iWon = alive &&
+      final iWon =
+          alive &&
           ((state.winner == 'koy' && myRole != Role.vampir) ||
               (state.winner == 'vampir' && myRole == Role.vampir));
       return _themed(

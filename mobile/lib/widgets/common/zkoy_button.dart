@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'tap_burst.dart';
+
 class ZkoyButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -18,6 +20,7 @@ class ZkoyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bg = color ?? Theme.of(context).colorScheme.primary;
     final child = Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -30,21 +33,25 @@ class ZkoyButton extends StatelessWidget {
       ],
     );
 
-    return SizedBox(
-      width: double.infinity,
-      height: big ? 76 : 60,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: color != null
-            ? ElevatedButton.styleFrom(
-                backgroundColor: color,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              )
-            : null,
-        child: child,
+    return TapBurst(
+      enabled: onPressed != null,
+      color: Colors.white,
+      child: SizedBox(
+        width: double.infinity,
+        height: big ? 76 : 60,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: bg,
+            foregroundColor: Colors.white,
+            elevation: onPressed == null ? 0 : 6,
+            shadowColor: bg.withValues(alpha: 0.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+          child: child,
+        ),
       ),
     );
   }

@@ -29,7 +29,10 @@ class DawnResultScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   const Text('🌅', style: TextStyle(fontSize: 56)),
                   const SizedBox(height: 16),
-                  Text('Şafak Söktü', style: Theme.of(context).textTheme.headlineMedium),
+                  Text(
+                    'Şafak Söktü',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     dawn?.text ?? 'Köy sakin bir gece geçirdi.',
@@ -40,7 +43,10 @@ class DawnResultScreen extends StatelessWidget {
                     const SizedBox(height: 28),
                     const Divider(),
                     const SizedBox(height: 12),
-                    Text('Gözcü Sorgun', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Gözcü Sorgun',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       '${me.gozcuResult!.name}: ${me.gozcuResult!.vamp ? "VAMPİR 🧛" : "temiz ✅"}',

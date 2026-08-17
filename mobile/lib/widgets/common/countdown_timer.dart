@@ -57,30 +57,35 @@ class _CountdownTimerState extends State<CountdownTimer> {
   Widget build(BuildContext context) {
     final ratio = widget.total == 0 ? 0.0 : (_local / widget.total).clamp(0, 1);
     final urgent = _local <= 10;
-    final color = urgent ? Colors.redAccent : Theme.of(context).colorScheme.primary;
+    final color = urgent
+        ? Colors.redAccent
+        : Theme.of(context).colorScheme.primary;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.label != null) ...[
-          Text(widget.label!,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(letterSpacing: 1.2)),
+          Text(
+            widget.label!,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(letterSpacing: 1.2),
+          ),
           const SizedBox(height: 10),
         ],
-        Text('$_local',
-            style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  color: color,
-                  fontSize: 56,
-                )),
+        Text(
+          '$_local',
+          style: Theme.of(
+            context,
+          ).textTheme.displayLarge?.copyWith(color: color, fontSize: 56),
+        ),
         if (_local == 0)
-          Text('faz kapanıyor…',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: color)),
+          Text(
+            'faz kapanıyor…',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: color),
+          ),
         const SizedBox(height: 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(8),

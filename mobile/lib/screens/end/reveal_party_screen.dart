@@ -40,12 +40,16 @@ class RevealPartyScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            state.winner == 'koy' ? 'Köy kazandı 🏘️' : 'Vampirler kazandı 🧛',
+                            state.winner == 'koy'
+                                ? 'Köy kazandı 🏘️'
+                                : 'Vampirler kazandı 🧛',
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 6),
-                          Text('Toplam pot: ${formatZats(state.potZats)} TAZ',
-                              style: Theme.of(context).textTheme.bodyLarge),
+                          Text(
+                            'Toplam pot: ${formatZats(state.potZats)} TAZ',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
                           const SizedBox(height: 16),
                           Container(
                             width: double.infinity,
@@ -56,15 +60,15 @@ class RevealPartyScreen extends StatelessWidget {
                             ),
                             child: Text(
                               'UFVK: ${end.ufvk}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
+                              style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(fontFamily: 'monospace'),
                             ),
                           ),
                           const SizedBox(height: 22),
-                          Text('Kim kime — tier ifşaları',
-                              style: Theme.of(context).textTheme.titleLarge),
+                          Text(
+                            'Kim kime — tier ifşaları',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                           const SizedBox(height: 10),
                           ...end.reveals.map((e) {
                             final payout = end.payouts
@@ -75,25 +79,44 @@ class RevealPartyScreen extends StatelessWidget {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: roleColor(role).withValues(alpha: 0.15),
+                                  color: roleColor(
+                                    role,
+                                  ).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: roleColor(role).withValues(alpha: 0.4)),
+                                  border: Border.all(
+                                    color: roleColor(
+                                      role,
+                                    ).withValues(alpha: 0.4),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    Text(roleEmoji(role), style: const TextStyle(fontSize: 20)),
+                                    Text(
+                                      roleEmoji(role),
+                                      style: const TextStyle(fontSize: 20),
+                                    ),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(e.name, style: Theme.of(context).textTheme.titleLarge),
+                                          Text(
+                                            e.name,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleLarge,
+                                          ),
                                           Text(
                                             '${role.label} · ${TierX.fromInt(e.tier).label}',
-                                            style: Theme.of(context).textTheme.bodyMedium,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
                                           ),
                                         ],
                                       ),
@@ -114,7 +137,8 @@ class RevealPartyScreen extends StatelessWidget {
                           const SizedBox(height: 24),
                           ZkoyButton(
                             label: 'Yeni Oyun',
-                            onPressed: () => context.read<GameProvider>().leaveRoom(),
+                            onPressed: () =>
+                                context.read<GameProvider>().leaveRoom(),
                           ),
                         ],
                       ),

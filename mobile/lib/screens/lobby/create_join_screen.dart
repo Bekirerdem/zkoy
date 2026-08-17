@@ -68,7 +68,10 @@ class _CreateJoinScreenState extends State<CreateJoinScreen> {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Text('Şirince Köyü', style: Theme.of(context).textTheme.displayLarge),
+                  Text(
+                    'Şirince Köyü',
+                    style: Theme.of(context).textTheme.displayLarge,
+                  ),
                   const SizedBox(height: 24),
                   if (_mode == _Mode.none) ...[
                     ZkoyButton(
@@ -94,13 +97,18 @@ class _CreateJoinScreenState extends State<CreateJoinScreen> {
                               controller: _codeController,
                               textAlign: TextAlign.center,
                               textCapitalization: TextCapitalization.characters,
-                              style: const TextStyle(fontSize: 28, letterSpacing: 6),
+                              style: const TextStyle(
+                                fontSize: 28,
+                                letterSpacing: 6,
+                              ),
                               maxLength: 4,
                               decoration: const InputDecoration(
                                 hintText: 'ACDE',
                                 counterText: '',
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(16),
+                                  ),
                                 ),
                               ),
                             ),
@@ -111,16 +119,23 @@ class _CreateJoinScreenState extends State<CreateJoinScreen> {
                               icon: const Icon(Icons.qr_code_scanner_rounded),
                               tooltip: 'QR okut',
                               onPressed: () async {
-                                final code = await Navigator.of(context).push<String>(
-                                  MaterialPageRoute(builder: (_) => const QrScanScreen()),
-                                );
+                                final code = await Navigator.of(context)
+                                    .push<String>(
+                                      MaterialPageRoute(
+                                        builder: (_) => const QrScanScreen(),
+                                      ),
+                                    );
                                 if (code != null) {
                                   // QR düz kod da olabilir, ?join=KOD linki de.
-                                  final fromUrl =
-                                      Uri.tryParse(code)?.queryParameters['join'];
-                                  final raw = (fromUrl ?? code).trim().toUpperCase();
-                                  _codeController.text =
-                                      raw.length > 4 ? raw.substring(0, 4) : raw;
+                                  final fromUrl = Uri.tryParse(
+                                    code,
+                                  )?.queryParameters['join'];
+                                  final raw = (fromUrl ?? code)
+                                      .trim()
+                                      .toUpperCase();
+                                  _codeController.text = raw.length > 4
+                                      ? raw.substring(0, 4)
+                                      : raw;
                                 }
                               },
                             ),
@@ -129,7 +144,10 @@ class _CreateJoinScreenState extends State<CreateJoinScreen> {
                       ),
                       const SizedBox(height: 20),
                     ],
-                    Text('Kademeni seç', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Kademeni seç',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       'Kademe herkesten gizli kalır; pota koyduğun tutarı belirler.',
@@ -137,36 +155,53 @@ class _CreateJoinScreenState extends State<CreateJoinScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
-                    ...Tier.values.map((t) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: ZkoyCard(
-                            selected: _tier == t,
-                            onTap: () => setState(() => _tier = t),
-                            child: Row(
-                              children: [
-                                Text(t.emoji, style: const TextStyle(fontSize: 32)),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(t.label, style: Theme.of(context).textTheme.titleLarge),
-                                      Text(
-                                          '${t.entryTaz.toStringAsFixed(3)} TAZ · oy ağırlığı ${t.voteWeight}x',
-                                          style: Theme.of(context).textTheme.bodyMedium),
-                                    ],
-                                  ),
+                    ...Tier.values.map(
+                      (t) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ZkoyCard(
+                          selected: _tier == t,
+                          onTap: () => setState(() => _tier = t),
+                          child: Row(
+                            children: [
+                              Text(
+                                t.emoji,
+                                style: const TextStyle(fontSize: 32),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      t.label,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
+                                    Text(
+                                      '${t.entryTaz.toStringAsFixed(3)} TAZ · oy ağırlığı ${t.voteWeight}x',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
                                 ),
-                                if (_tier == t) const Icon(Icons.check_circle_rounded),
-                              ],
-                            ),
+                              ),
+                              if (_tier == t)
+                                const Icon(Icons.check_circle_rounded),
+                            ],
                           ),
-                        )),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     if (gp.error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(gp.error!, style: const TextStyle(color: Colors.red)),
+                        child: Text(
+                          gp.error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ),
                     ZkoyButton(
                       label: gp.loading ? 'Katılıyor…' : 'Köye Katıl',

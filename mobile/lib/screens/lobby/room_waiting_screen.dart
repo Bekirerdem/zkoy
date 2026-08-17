@@ -48,14 +48,17 @@ class RoomWaitingScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Text('Oda Kodu', style: Theme.of(context).textTheme.bodyLarge),
+                  Text(
+                    'Oda Kodu',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     gp.code ?? '----',
-                    style: Theme.of(context)
-                        .textTheme
-                        .displayLarge
-                        ?.copyWith(fontSize: 52, letterSpacing: 6),
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      fontSize: 52,
+                      letterSpacing: 6,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -82,23 +85,29 @@ class RoomWaitingScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
-                  ...state.players.map((p) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: ZkoyCard(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(p.name,
-                                    style: Theme.of(context).textTheme.titleLarge),
-                              ),
-                              if (p.id == gp.myPlayerId)
-                                const Icon(Icons.person_rounded),
-                            ],
-                          ),
+                  ...state.players.map(
+                    (p) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ZkoyCard(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 12,
                         ),
-                      )),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                p.name,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                            if (p.id == gp.myPlayerId)
+                              const Icon(Icons.person_rounded),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   if (gp.error != null)
                     Padding(

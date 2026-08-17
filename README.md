@@ -1,4 +1,4 @@
-# ZKöy 🧛 — Vampir Köylü on Zcash
+﻿# ZKöy 🧛 — Vampir Köylü on Zcash
 
 > **Sealed-ballot social deduction, played live on Zcash testnet.**
 > Rol dağıtımından oylara, vasiyetlerden ödüllere — oyunun her sırrı bir
@@ -6,10 +6,6 @@
 > perdeye düşer ve herkes her şeyi kendi gözüyle doğrular.
 
 **Rlay Blockchain Week Şirince · ZcashTR 48h Challenge (Ağustos 2026)**
-
-<p align="center">
-  <img src="docs/img/perde-lobby.png" width="70%" alt="Perde — köy meydanı ve katılım QR'ı"/>
-</p>
 
 ## Tez
 
@@ -38,11 +34,6 @@ hibriti her yerde ilk.
    pot payını belirler; karekök fiyatlama plütokrasi freni).
 3. Gece telefonda oynanır, gündüz salonda tartışılır, oy mühürlü atılır.
 4. Oyun bitince **ifşa partisi**: anahtar perdeye düşer, mühür defteri açılır.
-
-<p align="center">
-  <img src="docs/img/perde-infaz.png" width="48%" alt="İnfaz anonsu"/>
-  <img src="docs/img/perde-ifsa.png" width="48%" alt="İfşa partisi — mühür defteri"/>
-</p>
 
 ## Bağımsız doğrulama (cam ebe)
 

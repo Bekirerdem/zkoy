@@ -43,6 +43,7 @@ class MeView {
   final Role? role;
   final bool alive;
   final int tier;
+  final bool isHost;
   final String? will;
   final bool acted;
   final List<Target> targets;
@@ -54,6 +55,7 @@ class MeView {
     required this.role,
     required this.alive,
     required this.tier,
+    required this.isHost,
     required this.will,
     required this.acted,
     required this.targets,
@@ -66,6 +68,7 @@ class MeView {
         role: j['role'] != null ? RoleX.fromWire(j['role'] as String) : null,
         alive: j['alive'] as bool,
         tier: j['tier'] as int,
+        isHost: j['isHost'] as bool? ?? false,
         will: j['will'] as String?,
         acted: j['acted'] as bool? ?? false,
         targets: (j['targets'] as List? ?? [])

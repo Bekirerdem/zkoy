@@ -93,6 +93,10 @@ class GameProvider extends ChangeNotifier {
     await refresh();
   }
 
+  /// Ebe-geçişi: kurucu bekleme fazlarını (şafak/gündüz/infaz) sayaç
+  /// beklemeden ilerletir — salon temposu kurucunun elinde.
+  Future<void> skipPhase() => _act('skip');
+
   Future<void> sendNight(String targetId) => _act('night', target: targetId);
   Future<void> sendVote(String targetId) => _act('vote', target: targetId);
   Future<void> sendGhostVote(String targetId) => _act('gvote', target: targetId);

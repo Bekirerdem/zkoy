@@ -48,6 +48,21 @@ class _GhostScreenState extends State<GhostScreen> {
                     const Text('👻', style: TextStyle(fontSize: 56)),
                     const SizedBox(height: 8),
                     BlockClock(blockHeight: state.height),
+                    const SizedBox(height: 12),
+                    // Hayalet oyunu takip edebilmeli: faz + kalan süre + son olay.
+                    Text(
+                      '${state.phase.label}'
+                      '${state.secondsRemaining > 0 ? " · ${state.secondsRemaining} sn" : ""}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    if (state.announcements.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        state.announcements.last.text,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Text(
                       'Her şeyi görürsün ama konuşamaz, oy atamazsın.\n'

@@ -17,7 +17,14 @@ class HttpApiClient implements ApiClient {
 
   Future<Map<String, dynamic>> _decode(Future<http.Response> req) async {
     final res = await req;
-    final body = res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body);
+    dynamic body;
+    try {
+      body = res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body);
+    } catch (_) {
+      // Tünel/sunucu hıçkırığında JSON yerine HTML/kesik veri gelebilir —
+      // teknik parse hatası oyuncuya sızmasın, poll zaten telafi ediyor.
+      throw Exception('bağlantı hıçkırdı — tekrar deneniyor…');
+    }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       final msg = body is Map && body['error'] != null
           ? body['error'] as String

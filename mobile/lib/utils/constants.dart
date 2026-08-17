@@ -21,11 +21,11 @@ String roleEmoji(Role role) => switch (role) {
 /// src/server/rooms.ts DEFAULT_DURATIONS ile birebir — sayaç ilerleme
 /// çubuğunun "total" değeri için (asıl süre sunucudan `endsAt` ile gelir).
 class PhaseDurations {
-  static const night = Duration(seconds: 75);
-  static const dawn = Duration(seconds: 12);
-  static const day = Duration(seconds: 120);
-  static const vote = Duration(seconds: 75);
-  static const execution = Duration(seconds: 12);
+  static const night = Duration(seconds: 60);
+  static const dawn = Duration(seconds: 10);
+  static const day = Duration(seconds: 90);
+  static const vote = Duration(seconds: 60);
+  static const execution = Duration(seconds: 10);
 }
 
 class GameConfig {

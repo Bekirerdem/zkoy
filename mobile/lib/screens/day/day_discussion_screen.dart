@@ -5,6 +5,7 @@ import '../../state/game_provider.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common/block_clock.dart';
 import '../../widgets/common/countdown_timer.dart';
+import '../../widgets/common/zkoy_button.dart';
 import '../../widgets/common/zkoy_card.dart';
 import '../will/will_editor_screen.dart';
 
@@ -96,6 +97,16 @@ class DayDiscussionScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 20),
+                  if (state.me?.isHost ?? false) ...[
+                    ZkoyButton(
+                      label: gp.loading ? 'Geçiliyor…' : 'Oylamaya Geç',
+                      icon: Icons.how_to_vote_rounded,
+                      big: true,
+                      onPressed:
+                          gp.loading ? null : () => gp.skipPhase(),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   TextButton.icon(
                     icon: const Icon(Icons.edit_note_rounded),
                     label: const Text('Vasiyetimi düzenle'),

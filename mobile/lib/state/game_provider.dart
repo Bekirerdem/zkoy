@@ -80,7 +80,16 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> startRoom() async {
     if (session.code == null) return;
-    await api.startRoom(session.code!);
+    loading = true;
+    notifyListeners();
+    try {
+      await api.startRoom(session.code!);
+      error = null;
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      loading = false;
+    }
     await refresh();
   }
 

@@ -88,6 +88,15 @@ class RoomWaitingScreen extends StatelessWidget {
                         ),
                       )),
                   const SizedBox(height: 20),
+                  if (gp.error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        gp.error!.replaceFirst('Exception: ', ''),
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   if (isHost)
                     ZkoyButton(
                       label: gp.loading ? 'Başlatılıyor…' : 'Oyunu Başlat',

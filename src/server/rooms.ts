@@ -93,6 +93,16 @@ export class Room {
 
   start() {
     const events = engine.start(this.state, Date.now() % 2 ** 31, MIN_PLAYERS);
+    // Klasik ebe ilanı: rol KOMPOZİSYONU herkese açık bilgidir — "2 vampir
+    // var" bilinmezse köy ilk vampirde oyunu bitti sanıyor (17 Ağu salon dersi).
+    const n = (r: string) =>
+      this.state.players.filter((p) => p.role === r).length;
+    const parca = [`${n("vampir")} vampir`, "1 doktor", "1 gözcü"];
+    if (n("deli") > 0) parca.push("1 deli");
+    this.announce(
+      "info",
+      `Köyde ${parca.join(", ")} var. Gözünüzü dört açın.`,
+    );
     // Pot fonlaması: oda başına tek gerçek tx, toplam giriş tutarı (SPEC §3).
     events.push({
       to: "room",
@@ -222,11 +232,15 @@ export class Room {
           const v = s.lastVote!;
           if (v.lynched) {
             const p = s.players.find((q) => q.id === v.lynched)!;
-            this.announce(
-              "execution",
-              `Köy kararını verdi: ${p.name} asıldı. Rolü: ${v.role?.toUpperCase()}.`,
-              p.will,
-            );
+            let text = `Köy kararını verdi: ${p.name} asıldı. Rolü: ${v.role?.toUpperCase()}.`;
+            if (v.role === "vampir") {
+              const kalan = s.players.filter(
+                (q) => q.alive && q.role === "vampir",
+              ).length;
+              if (kalan > 0)
+                text += ` Ama dikkat — ${kalan} vampir daha aramızda!`;
+            }
+            this.announce("execution", text, p.will);
             if (v.role === "deli")
               this.announce("info", "DELİ ASILDI — potun %10'u onun. Oyun sürüyor!");
           } else {

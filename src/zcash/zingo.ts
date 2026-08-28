@@ -266,18 +266,28 @@ export class ZingoService implements ZcashService {
     return txid;
   }
 
+  // Never await the wallet lock here: a busy seal queue holds OPS_DIR for
+  // minutes, and this is on the GET state path — 29 Ağu provası: state 72sn
+  // askıda kaldı. Serve stale, refresh in the background.
   private heightCache = { value: 0, at: 0 };
+  private heightRefreshing = false;
   async height(): Promise<number> {
-    if (Date.now() - this.heightCache.at < 45_000) return this.heightCache.value;
-    try {
-      const raw = (await runOffline(OPS_DIR, ["height"])) as unknown;
-      const h =
-        typeof raw === "number"
-          ? raw
-          : Number((raw as { height?: number })?.height ?? 0);
-      if (h > 0) this.heightCache = { value: h, at: Date.now() };
-    } catch {
-      // stale clock beats a dead clock on stage
+    if (Date.now() - this.heightCache.at >= 45_000 && !this.heightRefreshing) {
+      this.heightRefreshing = true;
+      void runOffline(OPS_DIR, ["height"])
+        .then((raw) => {
+          const h =
+            typeof raw === "number"
+              ? raw
+              : Number((raw as { height?: number })?.height ?? 0);
+          if (h > 0) this.heightCache = { value: h, at: Date.now() };
+        })
+        .catch(() => {
+          // stale clock beats a dead clock on stage
+        })
+        .finally(() => {
+          this.heightRefreshing = false;
+        });
     }
     return this.heightCache.value;
   }

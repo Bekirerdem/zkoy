@@ -144,6 +144,12 @@ interface PendingSeal {
 
 export class ZingoService implements ZcashService {
   readonly kind = "zingo" as const;
+
+  constructor() {
+    // Cache'i açılışta ısıt: kilit henüz boşken bir kez dolarsa perde asla
+    // "yükseklik 0" göstermez (29 Ağu provası — oyun boyunca 0 kaldı).
+    void this.height();
+  }
   private rooms = new Map<string, RoomWallet>();
   private playerAddrs = new Map<string, string>(); // `${code}/${playerId}` → UA
   private log = new Map<string, SealedMemo[]>();

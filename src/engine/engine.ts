@@ -371,6 +371,171 @@ export function closeDay(state: RoomState, by = "muhtar"): MemoEvent[] {
   return [{ to: "room", memo: memo(state, { t: "phase", r: state.round, ph: "NIGHT", by }) }];
 }
 
+/* ── GÜNDÜZ: dava akışı (SPEC §1) ── */
+
+export function accuse(state: RoomState, accuserId: string, accusedId: string): MemoEvent[] {
+  requirePhase(state, "DAY");
+  if (state.day.stage !== "free") throw new EngineError("dava sürüyor");
+  const accuser = player(state, accuserId);
+  const accused = player(state, accusedId);
+  if (!accuser.alive) throw new EngineError("ölüler suçlayamaz");
+  if (!accused.alive) throw new EngineError("hedef zaten ölü");
+  if (accuserId === accusedId) throw new EngineError("kendini suçlayamazsın");
+  if (state.day.triedToday.includes(accusedId))
+    throw new EngineError("bugün zaten yargılandı");
+  state.day.accusations[accuserId] = accusedId;
+  return [
+    { to: "room", memo: memo(state, { t: "accuse", r: state.round, p: accuserId, x: accusedId }) },
+  ];
+}
+
+export function second(state: RoomState, seconderId: string, accusedId: string): MemoEvent[] {
+  requirePhase(state, "DAY");
+  if (state.day.stage !== "free") throw new EngineError("dava sürüyor");
+  const seconder = player(state, seconderId);
+  if (!seconder.alive) throw new EngineError("ölüler destekleyemez");
+  if (seconderId === accusedId) throw new EngineError("kendini destekleyemezsin");
+  const found = Object.entries(state.day.accusations).find(
+    ([who, target]) => target === accusedId && who !== seconderId,
+  );
+  if (!found) throw new EngineError("ortada suçlama yok");
+  state.day.trial = { accused: accusedId, accuser: found[0], seconder: seconderId, verdicts: {} };
+  state.day.stage = "trial";
+  state.day.accusations = {};
+  return [
+    { to: "room", memo: memo(state, { t: "second", r: state.round, p: seconderId, x: accusedId }) },
+  ];
+}
+
+/** Savunma biter: suçlanan "bitti" der ya da Muhtar "oylamaya geç" der; host/cap force eder. */
+export function openVerdict(
+  state: RoomState,
+  byId: string | null,
+  opts: { force?: boolean; by?: string } = {},
+): MemoEvent[] {
+  requirePhase(state, "DAY");
+  const trial = state.day.trial;
+  if (!trial || state.day.stage !== "trial") throw new EngineError("savunma aşamasında değil");
+  if (!opts.force && byId !== trial.accused && byId !== state.muhtar)
+    throw new EngineError("oylamayı yalnız suçlanan ya da Muhtar açar");
+  state.day.stage = "verdict";
+  const by = opts.by ?? (byId === trial.accused ? "accused" : "muhtar");
+  return [{ to: "room", memo: memo(state, { t: "phase", r: state.round, ph: "VERDICT", by }) }];
+}
+
+function verdictTally(state: RoomState) {
+  const trial = state.day.trial!;
+  let total = 0;
+  let guiltyW = 0;
+  let notGuiltyW = 0;
+  let pending = 0;
+  for (const p of alivePlayers(state)) {
+    const w = weightOf(state, p.id);
+    total += w;
+    const v = trial.verdicts[p.id];
+    if (v === undefined) pending += w;
+    else if (v) guiltyW += w;
+    else notGuiltyW += w;
+  }
+  return { total, guiltyW, notGuiltyW, pending };
+}
+
+/** Açık oy. Sonuç matematiksel olarak kesinleşince oylama kendiliğinden kapanır. */
+export function castVerdict(state: RoomState, voterId: string, guilty: boolean): MemoEvent[] {
+  requirePhase(state, "DAY");
+  const trial = state.day.trial;
+  if (!trial || state.day.stage !== "verdict") throw new EngineError("karar oyu açık değil");
+  const voter = player(state, voterId);
+  if (!voter.alive) throw new EngineError("ölüler oy atamaz");
+  trial.verdicts[voterId] = guilty;
+  const events: MemoEvent[] = [
+    {
+      to: "room",
+      memo: memo(state, {
+        t: "verdict",
+        r: state.round,
+        p: voterId,
+        x: trial.accused,
+        y: guilty ? 1 : 0,
+      }),
+    },
+  ];
+  const { total, guiltyW, pending } = verdictTally(state);
+  const decided = guiltyW * 2 > total || (guiltyW + pending) * 2 <= total || pending === 0;
+  if (decided) events.push(...resolveVerdict(state));
+  return events;
+}
+
+/** Lynch iff guilty weight exceeds half of living weight. Also called by the server on a cap. */
+export function resolveVerdict(state: RoomState): MemoEvent[] {
+  requirePhase(state, "DAY");
+  const trial = state.day.trial;
+  if (!trial || state.day.stage !== "verdict") throw new EngineError("karar oyu açık değil");
+  const { total, guiltyW, notGuiltyW } = verdictTally(state);
+  const lynched = guiltyW * 2 > total;
+  const victim = player(state, trial.accused);
+  const events: MemoEvent[] = [];
+  state.lastVerdict = {
+    round: state.round,
+    accused: trial.accused,
+    lynched: lynched ? trial.accused : null,
+    role: lynched ? victim.role : null,
+    guilty: guiltyW,
+    notGuilty: notGuiltyW,
+  };
+  state.day.trial = null;
+  state.day.stage = "free";
+  if (lynched) {
+    events.push(...kill(state, victim.id));
+    if (victim.role === "deli") state.deliWon = true;
+    for (const [ghost, guess] of Object.entries(state.gvotes))
+      if (guess === victim.id) state.kahinScore[ghost] = (state.kahinScore[ghost] ?? 0) + 1;
+    state.phase = "EXECUTION";
+    events.push({
+      to: "room",
+      memo: memo(state, {
+        t: "result",
+        r: state.round,
+        died: null,
+        saved: false,
+        lynched: victim.name,
+        role: victim.role,
+      }),
+    });
+    const winner = checkWin(state);
+    if (winner) {
+      state.winner = winner;
+      state.phase = "END";
+      events.push(...settle(state));
+    }
+  } else {
+    state.day.triedToday.push(victim.id);
+    events.push({
+      to: "room",
+      memo: memo(state, {
+        t: "result",
+        r: state.round,
+        died: null,
+        saved: false,
+        lynched: null,
+        role: null,
+        acq: victim.name,
+      }),
+    });
+  }
+  return events;
+}
+
+/** EXECUTION → NIGHT (next round). */
+export function nextRound(state: RoomState, by = "auto"): MemoEvent[] {
+  requirePhase(state, "EXECUTION");
+  state.heirPending = null;
+  state.round += 1;
+  state.gvotes = {};
+  state.phase = "NIGHT";
+  return [{ to: "room", memo: memo(state, { t: "phase", r: state.round, ph: "NIGHT", by }) }];
+}
+
 /** END: badges (SPEC §4 badges tablosu) + kura ifşası. Ödül havuzu sunucu işidir. */
 function settle(state: RoomState): MemoEvent[] {
   const badges: Badge[] = [];

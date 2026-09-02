@@ -5,8 +5,18 @@ import {
   nominate,
   electionVote,
   resolveElection,
+  resolveNight,
+  startDay,
 } from "../src/engine/engine";
 import { Role, RoomState } from "../src/engine/types";
+
+/** NIGHT round 1 with nobody acting → DAWN → DAY (quiet night). */
+export function inDay(n: number, seed = 42): RoomState {
+  const state = inNight(n, seed);
+  resolveNight(state);
+  startDay(state);
+  return state;
+}
 
 /** ELECTION → NIGHT with `id` as Muhtar (everyone votes for them). */
 export function electMuhtar(state: RoomState, id: string): void {

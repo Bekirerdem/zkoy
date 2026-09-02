@@ -17,13 +17,128 @@ import {
   nameHeir,
   startDay,
   closeDay,
+  accuse,
+  second,
+  openVerdict,
+  castVerdict,
+  resolveVerdict,
+  nextRound,
 } from "../src/engine/engine";
 import { RoomState } from "../src/engine/types";
-import { makeRoom, byRole, dealt, electMuhtar, inNight } from "./helpers";
+import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay } from "./helpers";
 
 function closeDayForTest(state: RoomState) {
   closeDay(state, "muhtar");
 }
+
+describe("day trial", () => {
+  test("accusation is pending until seconded; seconder cannot be the accuser or the accused", () => {
+    const state = inDay(7);
+    const ev = accuse(state, "p1", "p2");
+    expect(ev[0]!.memo).toEqual({ v: 2, g: "TEST", t: "accuse", r: 1, p: "p1", x: "p2" });
+    expect(state.day.stage).toBe("free");
+    expect(() => second(state, "p1", "p2")).toThrow(EngineError);
+    expect(() => second(state, "p2", "p2")).toThrow(EngineError);
+    expect(() => second(state, "p3", "p4")).toThrow(EngineError); // no accusation on p4
+    const ev2 = second(state, "p3", "p2");
+    expect(ev2[0]!.memo).toMatchObject({ t: "second", p: "p3", x: "p2" });
+    expect(state.day.stage).toBe("trial");
+    expect(state.day.trial).toMatchObject({ accused: "p2", accuser: "p1", seconder: "p3" });
+    expect(() => accuse(state, "p4", "p5")).toThrow(EngineError); // one trial at a time
+  });
+  test("only the accused or the Muhtar opens the verdict; host can force", () => {
+    const state = inDay(7); // p0 Muhtar
+    accuse(state, "p1", "p2");
+    second(state, "p3", "p2");
+    expect(() => openVerdict(state, "p4")).toThrow(EngineError);
+    expect(() => castVerdict(state, "p1", true)).toThrow(EngineError); // not open yet
+    const ev = openVerdict(state, "p2");
+    expect(ev[0]!.memo).toMatchObject({ t: "phase", ph: "VERDICT", by: "accused" });
+    expect(state.day.stage).toBe("verdict");
+
+    const s2 = inDay(7);
+    accuse(s2, "p1", "p2");
+    second(s2, "p3", "p2");
+    expect(openVerdict(s2, null, { force: true, by: "host" })[0]!.memo).toMatchObject({ by: "host" });
+  });
+  test("verdict closes itself the moment guilty weight exceeds half; lynch → EXECUTION", () => {
+    const state = inDay(7); // 7 alive, p0 Muhtar (2x) → total weight 8, need > 4
+    accuse(state, "p1", "p2");
+    second(state, "p3", "p2");
+    openVerdict(state, "p0");
+    castVerdict(state, "p1", true); // 1
+    castVerdict(state, "p3", true); // 2
+    castVerdict(state, "p4", true); // 3
+    expect(state.phase).toBe("DAY");
+    const ev = castVerdict(state, "p0", true); // +2 = 5 > 4 → decided
+    expect(state.phase).toBe("EXECUTION");
+    expect(state.players.find((p) => p.id === "p2")!.alive).toBe(false);
+    expect(state.lastVerdict).toMatchObject({ accused: "p2", lynched: "p2", guilty: 5, notGuilty: 0 });
+    expect(ev.find((e) => e.memo.t === "result")!.memo).toMatchObject({ lynched: "oyuncu2" });
+    expect(ev.find((e) => e.memo.t === "verdict")!.memo).toEqual({
+      v: 2,
+      g: "TEST",
+      t: "verdict",
+      r: 1,
+      p: "p0",
+      x: "p2",
+      y: 1,
+    });
+  });
+  test("verdict closes itself when guilty can no longer exceed half; acquittal returns to free and blocks a second trial", () => {
+    const state = inDay(7); // total 8, need > 4
+    accuse(state, "p1", "p2");
+    second(state, "p3", "p2");
+    openVerdict(state, "p0");
+    castVerdict(state, "p0", false); // notGuilty 2, pending 6
+    castVerdict(state, "p4", false); // notGuilty 3, pending 5 → guilty max 5 > 4 still possible
+    expect(state.day.stage).toBe("verdict");
+    castVerdict(state, "p5", false); // notGuilty 4, pending 4 → guilty max 4, not > 4 → decided
+    expect(state.day.stage).toBe("free");
+    expect(state.phase).toBe("DAY");
+    expect(state.players.find((p) => p.id === "p2")!.alive).toBe(true);
+    expect(state.lastVerdict).toMatchObject({ accused: "p2", lynched: null });
+    expect(state.day.triedToday).toEqual(["p2"]);
+    expect(() => accuse(state, "p1", "p2")).toThrow(EngineError); // no second trial today
+    accuse(state, "p1", "p4"); // but a new accusation on someone else is fine
+  });
+  test("cap resolution with partial votes uses the same rule", () => {
+    const state = inDay(7);
+    accuse(state, "p1", "p2");
+    second(state, "p3", "p2");
+    openVerdict(state, "p0");
+    castVerdict(state, "p1", true);
+    resolveVerdict(state); // server cap: 1 of 8 → acquitted
+    expect(state.lastVerdict!.lynched).toBeNull();
+    expect(state.day.stage).toBe("free");
+  });
+  test("closeDay refuses during a trial; nextRound after execution increments the round", () => {
+    const state = inDay(7);
+    accuse(state, "p1", "p2");
+    second(state, "p3", "p2");
+    expect(() => closeDay(state)).toThrow(EngineError);
+    openVerdict(state, "p2");
+    for (const v of ["p0", "p1", "p3", "p4"]) castVerdict(state, v, true);
+    expect(state.phase).toBe("EXECUTION");
+    const ev = nextRound(state, "auto");
+    expect(state.phase).toBe("NIGHT");
+    expect(state.round).toBe(2);
+    expect(ev[0]!.memo).toMatchObject({ t: "phase", ph: "NIGHT", r: 2 });
+  });
+  test("lynched Muhtar opens the heir beat in EXECUTION; nextRound clears it", () => {
+    const state = inDay(7); // p0 Muhtar
+    accuse(state, "p1", "p0");
+    second(state, "p3", "p0");
+    openVerdict(state, "p0");
+    for (const v of ["p1", "p3", "p4", "p5", "p6"]) castVerdict(state, v, true); // 5 > 4
+    expect(state.phase).toBe("EXECUTION");
+    expect(state.heirPending).toBe("p0");
+    nameHeir(state, "p0", "p6");
+    expect(state.muhtar).toBe("p6");
+    nextRound(state);
+    expect(state.heirPending).toBeNull();
+  });
+});
 
 describe("election", () => {
   test("only alive players nominate and vote; votes must target a candidate", () => {

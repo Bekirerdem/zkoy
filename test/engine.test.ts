@@ -11,8 +11,19 @@ import {
   electionVote,
   electionComplete,
   resolveElection,
+  nightAction,
+  nightComplete,
+  resolveNight,
+  nameHeir,
+  startDay,
+  closeDay,
 } from "../src/engine/engine";
-import { makeRoom, byRole, dealt, electMuhtar } from "./helpers";
+import { RoomState } from "../src/engine/types";
+import { makeRoom, byRole, dealt, electMuhtar, inNight } from "./helpers";
+
+function closeDayForTest(state: RoomState) {
+  closeDay(state, "muhtar");
+}
 
 describe("election", () => {
   test("only alive players nominate and vote; votes must target a candidate", () => {
@@ -119,5 +130,78 @@ describe("lobby v2", () => {
     const a = dealt(9, 7);
     const b = dealt(9, 7);
     expect(a.players.map((p) => p.role)).toEqual(b.players.map((p) => p.role));
+  });
+});
+
+describe("night v2", () => {
+  test("three vampires at 13 players: majority pick dies unless saved", () => {
+    const state = inNight(13);
+    const vamps = byRole(state, "vampir");
+    expect(vamps.length).toBe(3);
+    const [doktor] = byRole(state, "doktor");
+    const civ = state.players
+      .filter((p) => !vamps.includes(p.id) && p.id !== doktor)
+      .map((p) => p.id);
+    nightAction(state, vamps[0]!, civ[0]!);
+    nightAction(state, vamps[1]!, civ[0]!);
+    nightAction(state, vamps[2]!, civ[1]!);
+    nightAction(state, doktor!, civ[1]!); // guards the minority target — no effect
+    expect(nightComplete(state)).toBe(false); // gozcu has not acted
+    const [gozcu] = byRole(state, "gozcu");
+    nightAction(state, gozcu!, vamps[0]!);
+    expect(nightComplete(state)).toBe(true);
+    const events = resolveNight(state);
+    expect(state.players.find((p) => p.id === civ[0])!.alive).toBe(false);
+    expect(state.phase).toBe("DAWN");
+    expect(events.find((e) => e.memo.t === "seerr")!.memo).toMatchObject({
+      v: 2,
+      g: "TEST",
+      x: vamps[0],
+      vamp: true,
+    });
+    expect(events.find((e) => e.memo.t === "result")!.memo).toMatchObject({ r: 1, saved: false });
+  });
+  test("doctor may guard the same person on consecutive nights", () => {
+    const state = inNight(7);
+    const [vampir] = byRole(state, "vampir");
+    const [doktor] = byRole(state, "doktor");
+    const victim = state.players.find((p) => p.id !== vampir && p.id !== doktor)!.id;
+    nightAction(state, vampir!, victim);
+    nightAction(state, doktor!, victim);
+    resolveNight(state);
+    startDay(state);
+    closeDayForTest(state);
+    nightAction(state, vampir!, victim);
+    nightAction(state, doktor!, victim); // second night, same target: allowed
+    resolveNight(state);
+    expect(state.players.find((p) => p.id === victim)!.alive).toBe(true);
+  });
+  test("Muhtar dies at night → heirPending; heir named during DAWN; startDay clears it", () => {
+    const state = inNight(7); // p0 is Muhtar
+    const [vampir] = byRole(state, "vampir");
+    if (vampir === "p0") return; // seed 42 gives p0 a non-vampire role; guard anyway
+    nightAction(state, vampir!, "p0");
+    resolveNight(state);
+    expect(state.muhtar).toBeNull();
+    expect(state.heirPending).toBe("p0");
+    expect(() => nameHeir(state, "p1", "p2")).toThrow(EngineError); // only the dead Muhtar
+    const events = nameHeir(state, "p0", "p2");
+    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "heir", p: "p0", x: "p2" });
+    expect(state.muhtar).toBe("p2");
+    startDay(state, "muhtar");
+    expect(state.heirPending).toBeNull();
+    expect(state.phase).toBe("DAY");
+    expect(state.day.stage).toBe("free");
+  });
+  test("unnamed heir: village continues without a Muhtar", () => {
+    const state = inNight(7);
+    const [vampir] = byRole(state, "vampir");
+    if (vampir === "p0") return;
+    nightAction(state, vampir!, "p0");
+    resolveNight(state);
+    const events = startDay(state);
+    expect(state.muhtar).toBeNull();
+    expect(state.heirPending).toBeNull();
+    expect(events[0]!.memo).toMatchObject({ t: "phase", ph: "DAY", by: "auto", r: 1 });
   });
 });

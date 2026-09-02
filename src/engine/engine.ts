@@ -204,3 +204,206 @@ export function resolveElection(state: RoomState, tieSeed: number): MemoEvent[] 
     { to: "room", memo: memo(state, { t: "muhtar", p: muhtar, w: state.muhtarWeight }) },
   ];
 }
+
+/* ── GECE ── */
+
+export function nightAction(
+  state: RoomState,
+  playerId: string,
+  targetId: string,
+): MemoEvent[] {
+  requirePhase(state, "NIGHT");
+  const actor = player(state, playerId);
+  const target = player(state, targetId);
+  if (!actor.alive) throw new EngineError("ölüler gece hamlesi yapamaz");
+  if (!target.alive) throw new EngineError("hedef zaten ölü");
+  switch (actor.role) {
+    case "vampir":
+      if (targetId === playerId) throw new EngineError("vampir kendini yiyemez");
+      state.night.vampireTargets[playerId] = targetId;
+      break;
+    case "doktor":
+      state.night.doctorSave = targetId; // her gece serbest (SPEC §1)
+      break;
+    case "gozcu":
+      if (targetId === playerId) throw new EngineError("gözcü kendini sorgulayamaz");
+      state.night.gozcuTarget = targetId;
+      break;
+    default:
+      throw new EngineError("bu rolün gece hamlesi yok");
+  }
+  return [
+    { to: "room", memo: memo(state, { t: "night", r: state.round, p: playerId, x: targetId }) },
+  ];
+}
+
+/** True when every living night actor has acted (server resolves early). */
+export function nightComplete(state: RoomState): boolean {
+  const alive = alivePlayers(state);
+  const vampires = alive.filter((p) => p.role === "vampir");
+  const doctor = alive.find((p) => p.role === "doktor");
+  const gozcu = alive.find((p) => p.role === "gozcu");
+  return (
+    vampires.every((v) => state.night.vampireTargets[v.id] !== undefined) &&
+    (!doctor || state.night.doctorSave !== null) &&
+    (!gozcu || state.night.gozcuTarget !== null)
+  );
+}
+
+/** Majority target among vampire picks; tie → first vampire's pick. */
+function vampireVerdict(state: RoomState): string | null {
+  const picks = Object.values(state.night.vampireTargets);
+  if (picks.length === 0) return null;
+  const tally = new Map<string, number>();
+  for (const t of picks) tally.set(t, (tally.get(t) ?? 0) + 1);
+  let best = picks[0]!;
+  let bestCount = 0;
+  for (const t of picks) {
+    const c = tally.get(t)!;
+    if (c > bestCount) {
+      best = t;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
+function checkWin(state: RoomState): Winner {
+  const alive = alivePlayers(state);
+  const vampires = alive.filter((p) => p.role === "vampir").length;
+  if (vampires === 0) return "koy";
+  if (vampires >= alive.length - vampires) return "vampir";
+  return null;
+}
+
+/** Marks dead, sends the spoiler; if it was the Muhtar, opens the heir beat. */
+function kill(state: RoomState, id: string): MemoEvent[] {
+  const p = player(state, id);
+  p.alive = false;
+  p.diedInRound = state.round;
+  if (state.muhtar === id) {
+    state.muhtar = null;
+    state.heirPending = id;
+  }
+  const roles: Record<string, Role> = {};
+  for (const q of state.players) roles[q.name] = q.role!;
+  return [{ to: { player: id }, memo: memo(state, { t: "spoiler", roles }) }];
+}
+
+export function resolveNight(state: RoomState): MemoEvent[] {
+  requirePhase(state, "NIGHT");
+  const events: MemoEvent[] = [];
+  const victim = vampireVerdict(state);
+  const saved = victim !== null && state.night.doctorSave === victim;
+  let died: string | null = null;
+  if (victim && !saved) {
+    died = victim;
+    events.push(...kill(state, victim));
+  }
+  let gozcuResult: { target: string; vamp: boolean } | null = null;
+  const gozcuTarget = state.night.gozcuTarget;
+  const gozcu = state.players.find((p) => p.role === "gozcu" && p.alive);
+  if (gozcuTarget && gozcu) {
+    gozcuResult = { target: gozcuTarget, vamp: player(state, gozcuTarget).role === "vampir" };
+    events.push({
+      to: "room",
+      memo: memo(state, {
+        t: "seerr",
+        r: state.round,
+        p: gozcu.id,
+        x: gozcuTarget,
+        vamp: gozcuResult.vamp,
+      }),
+    });
+  }
+  state.lastNight = { round: state.round, died, saved, gozcuResult };
+  events.push({
+    to: "room",
+    memo: memo(state, {
+      t: "result",
+      r: state.round,
+      died: died ? player(state, died).name : null,
+      saved,
+      lynched: null,
+      role: died ? player(state, died).role : null,
+    }),
+  });
+  state.night = { vampireTargets: {}, doctorSave: null, gozcuTarget: null };
+  const winner = checkWin(state);
+  if (winner) {
+    state.winner = winner;
+    state.phase = "END";
+    events.push(...settle(state));
+  } else {
+    state.phase = "DAWN";
+  }
+  return events;
+}
+
+/** Dead Muhtar names a living heir during the DAWN/EXECUTION beat right after death. */
+export function nameHeir(state: RoomState, playerId: string, heirId: string): MemoEvent[] {
+  requirePhase(state, "DAWN", "EXECUTION");
+  if (state.heirPending !== playerId) throw new EngineError("halef gösterme hakkı yok");
+  const heir = player(state, heirId);
+  if (!heir.alive) throw new EngineError("halef yaşayan biri olmalı");
+  state.muhtar = heirId;
+  state.heirPending = null;
+  return [{ to: "room", memo: memo(state, { t: "heir", p: playerId, x: heirId }) }];
+}
+
+/** DAWN → DAY. `by` = who closed the dawn beat ("muhtar" | "host" | "cap" | "auto"). */
+export function startDay(state: RoomState, by = "auto"): MemoEvent[] {
+  requirePhase(state, "DAWN");
+  state.heirPending = null; // unnamed heir → köy Muhtar'sız devam eder
+  state.day = freshDay();
+  state.gvotes = {};
+  state.phase = "DAY";
+  return [{ to: "room", memo: memo(state, { t: "phase", r: state.round, ph: "DAY", by }) }];
+}
+
+/** DAY (no open trial) → NIGHT, next round. Muhtar or host closes the day. */
+export function closeDay(state: RoomState, by = "muhtar"): MemoEvent[] {
+  requirePhase(state, "DAY");
+  if (state.day.stage !== "free") throw new EngineError("dava sürerken gün kapanmaz");
+  state.round += 1;
+  state.gvotes = {};
+  state.phase = "NIGHT";
+  return [{ to: "room", memo: memo(state, { t: "phase", r: state.round, ph: "NIGHT", by }) }];
+}
+
+/** END: badges (SPEC §4 badges tablosu) + kura ifşası. Ödül havuzu sunucu işidir. */
+function settle(state: RoomState): MemoEvent[] {
+  const badges: Badge[] = [];
+  const side =
+    state.winner === "koy"
+      ? state.players.filter((p) => p.alive && p.role !== "vampir")
+      : state.players.filter((p) => p.role === "vampir");
+  for (const p of side) badges.push({ playerId: p.id, kind: "kazanan" });
+  if (state.deliWon) {
+    const deli = state.players.find((p) => p.role === "deli");
+    if (deli) badges.push({ playerId: deli.id, kind: "deli" });
+  }
+  if (state.muhtar) badges.push({ playerId: state.muhtar, kind: "muhtar" });
+  const scores = Object.entries(state.kahinScore);
+  if (scores.length > 0) {
+    const top = Math.max(...scores.map(([, s]) => s));
+    if (top > 0)
+      for (const [ghost, s] of scores)
+        if (s === top) badges.push({ playerId: ghost, kind: "kahin" });
+  }
+  state.badges = badges;
+  const events: MemoEvent[] = [
+    {
+      to: "room",
+      memo: memo(state, { t: "phase", r: state.round, ph: "END", by: "auto", winner: state.winner }),
+    },
+  ];
+  for (const b of badges)
+    events.push({ to: { player: b.playerId }, memo: memo(state, { t: "badge", kind: b.kind }) });
+  if (state.seed !== null && state.seedSalt)
+    events.push({
+      to: "room",
+      memo: memo(state, { t: "seedr", seed: state.seed, salt: state.seedSalt }),
+    });
+  return events;
+}

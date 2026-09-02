@@ -121,7 +121,7 @@ Tek uygulama (Flutter: iOS, Android, Web). Oda kurulurken kurucu mod seçer. Mod
 - **Kalıcılık:** SQLite, Bun yerleşik sürücü, tek dosya. Oda state'i her olayda snapshot; sunucu açılınca SON olmayan odalar geri yüklenir. Mühür kuyruğu kalıcı.
 - **Zincir servisi:** cüzdanlar sunucuda (cam ebe modeli sürüyor). **Ekonomik mod (varsayılan):** ops gönderir, faz başına toplu çok-memo tx. **Kanıt modu (düğme):** oyuncu cüzdanından hamle başına tx. Proving ayrı işçi süreçte, düşük öncelikte. zingolib forku Ironwood'a rebase + Zakura Common crate'lerine bağlanır. Lightwalletd: topluluk sunucusu (zec.rocks / lightwalletd.com); kendi Zakura arşiv düğümü (≈252 GiB) grant sonrası.
 - **Perde:** sunucu render HTML kalkar; perde = Flutter web'in seyirci görünümü, aynı meydan bileşeni, URL ile açılır.
-- **Dağıtım:** VPS Hetzner CX32 sınıfı (4 vCPU / 8 GB / 80 GB). zkoy.fun doğrudan VPS'e, tünel emekli. HTTP+WS Cloudflare arkasında; LiveKit medya DNS-only alt alan adından doğrudan VPS'e. iOS derlemesi Selinay'ın Apple Developer hesabından (Mac yerel ya da Codemagic), Android Windows'tan.
+- **Dağıtım:** VPS Hetzner CX32 sınıfı (4 vCPU / 8 GB / 80 GB). zkoy.fun doğrudan VPS'e, tünel emekli. HTTP+WS Cloudflare arkasında; LiveKit medya DNS-only alt alan adından doğrudan VPS'e. iOS derlemesi Selinay'ın Mac'inde, onun Apple Developer hesabından; Android Windows'tan.
 - **Riskler:** zingolib Ironwood rebase **yüksek** · Common entegrasyonu **orta** · gece ses izinleri **orta** · SQLite'tan geri yükleme **orta** · WS yeniden bağlanma **düşük**.
 
 ---
@@ -229,9 +229,9 @@ oyun · gerçek oyuncu · şehir · shielded tx · (kanıt modunda) gerçek gön
 ## 7. Mağaza yolu — TASLAK (Bekir ile konuşulacak)
 
 - **En düşük riskli çizgi:** parti oyunu; cüzdan barındırmaz, para almaz, "kazan" vaat etmez. Zcash listede tek cümle. Etkinlik ödülleri sponsorlu yarışma kuralıyla, resmi kural metni etkinlik kaydında. "NFT" kelimesi geçmez.
-- **Maddeler:** Apple 3.1.5 kripto (temiz) · Apple 5.3 / Google gerçek paralı oyun (oyuncu para koymuyor; sponsorlu yarışma kuralına uyulur) · Apple 4.2 (Flutter native) · **Apple 1.2 / Google UGC: şikayet et, engelle, sustur, kurucunun oyuncu atması ZORUNLU** · Apple 4.8 (Google varsa Apple girişi) · gizlilik politikası, mikrofon/kamera izin metinleri.
-- **Hesaplar:** Apple Developer hesabı **Selinay'da var** (iOS/TestFlight bu hesaptan). Google Play hesabı durumu açık; yeni bireysel hesaplara üretim öncesi kapalı test şartı (12 test kullanıcısı) var — hesap açılınca doğrulanacak, tur oyuncuları test kullanıcısı olur.
-- **Derleme:** iOS için Mac şart — Selinay'ın Mac'i varsa yerel Xcode, yoksa Codemagic bulut Mac → TestFlight. Android Windows'tan; ayrıca doğrudan APK.
+- **Maddeler:** Apple 3.1.5 kripto (temiz) · Apple 5.3 / Google gerçek paralı oyun (oyuncu para koymuyor; sponsorlu yarışma kuralına uyulur) · Apple 4.2 (Flutter native) · **Apple 1.2 / Google UGC: şikayet et, engelle, sustur, kurucunun oyuncu atması ZORUNLU — ekran/akış kararı Bekir + Selinay** · Apple 4.8 (Google varsa Apple girişi) · gizlilik politikası, mikrofon/kamera izin metinleri.
+- **Hesaplar:** Apple Developer hesabı **Selinay'da var** (iOS/TestFlight bu hesaptan). Google Play hesabı henüz yok, üçüncü sırada olduğu için sonra alınır; yeni bireysel hesaplara üretim öncesi kapalı test şartı (12 test kullanıcısı) var — hesap açılınca doğrulanacak, tur oyuncuları test kullanıcısı olur.
+- **Derleme:** iOS Selinay'ın Mac'inde yerel Xcode → TestFlight; bulut Mac gerekmez. Android Windows'tan; ayrıca doğrudan APK.
 - **Sıra (Bekir, 2 Eyl):** web/PWA önce ve canlı kalır (tur buna dayanır) → **Apple App Store** → Google Play. Mağaza uzaktan modun kapısıdır.
 - **Liste:** ZKöy · Vampir Köylü · Oyun/Strateji · 12+ · gerçek ekran görüntüleri · TR + EN.
 

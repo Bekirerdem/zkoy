@@ -549,6 +549,16 @@ export function nextRound(state: RoomState, by = "auto"): MemoEvent[] {
   return [{ to: "room", memo: memo(state, { t: "phase", r: state.round, ph: "NIGHT", by }) }];
 }
 
+/* ── VASİYET ── */
+
+export function setWill(state: RoomState, playerId: string, txt: string): MemoEvent[] {
+  const p = player(state, playerId);
+  if (!p.alive) throw new EngineError("ölüler vasiyet güncelleyemez");
+  if (txt.length > 200) throw new EngineError("vasiyet en çok 200 karakter");
+  p.will = txt;
+  return [{ to: "room", memo: memo(state, { t: "will", p: playerId, txt }) }];
+}
+
 /** END: badges (SPEC §4 badges tablosu) + kura ifşası. Ödül havuzu sunucu işidir. */
 function settle(state: RoomState): MemoEvent[] {
   const badges: Badge[] = [];

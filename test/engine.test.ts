@@ -24,9 +24,68 @@ import {
   resolveVerdict,
   nextRound,
   gvote,
+  setWill,
 } from "../src/engine/engine";
-import { RoomState } from "../src/engine/types";
+import { MemoEvent, RoomState } from "../src/engine/types";
 import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay } from "./helpers";
+
+describe("will + envelope + replay", () => {
+  test("will updates while alive, 200 char cap, dead rejected", () => {
+    const state = inDay(7);
+    const ev = setWill(state, "p1", "beni doktor kurtarsın");
+    expect(ev[0]!.memo).toEqual({ v: 2, g: "TEST", t: "will", p: "p1", txt: "beni doktor kurtarsın" });
+    expect(() => setWill(state, "p1", "x".repeat(201))).toThrow(EngineError);
+    lynchToday(state, "p1");
+    expect(() => setWill(state, "p1", "geç")).toThrow(EngineError);
+  });
+  test("every memo of a full game carries v:2 and the room code; game ends", () => {
+    const all: MemoEvent[] = [];
+    const state = createRoom("TEST");
+    for (let i = 0; i < 9; i++) all.push(...join(state, `p${i}`, `oyuncu${i}`));
+    all.push(...start(state, 7, "commit-7"));
+    nominate(state, "p3");
+    for (const p of state.players) all.push(...electionVote(state, p.id, "p3"));
+    all.push(...resolveElection(state, 7));
+    expect(state.muhtar).toBe("p3");
+    let guard = 0;
+    while (state.phase !== "END" && guard++ < 40) {
+      if (state.phase === "NIGHT") {
+        const vamps = byRole(state, "vampir").filter(
+          (id) => state.players.find((p) => p.id === id)!.alive,
+        );
+        const target = state.players.find((p) => p.alive && !vamps.includes(p.id))!.id;
+        for (const v of vamps) all.push(...nightAction(state, v, target));
+        all.push(...resolveNight(state));
+      } else if (state.phase === "DAWN") {
+        all.push(...startDay(state, "muhtar"));
+      } else if (state.phase === "DAY") {
+        const vampAlive = byRole(state, "vampir").find(
+          (id) => state.players.find((p) => p.id === id)!.alive,
+        );
+        const alive = state.players.filter((p) => p.alive).map((p) => p.id);
+        const target = vampAlive ?? alive[alive.length - 1]!;
+        const accuser = alive.find((id) => id !== target)!;
+        const seconder = alive.find((id) => id !== target && id !== accuser)!;
+        all.push(...accuse(state, accuser, target));
+        all.push(...second(state, seconder, target));
+        all.push(...openVerdict(state, null, { force: true, by: "host" }));
+        for (const id of alive)
+          if (state.day.stage === "verdict") all.push(...castVerdict(state, id, true));
+      } else if (state.phase === "EXECUTION") {
+        all.push(...nextRound(state));
+      }
+    }
+    expect(state.phase).toBe("END");
+    expect(state.winner).not.toBeNull();
+    for (const e of all) expect(e.memo).toMatchObject({ v: 2, g: "TEST" });
+    const types = new Set(all.map((e) => e.memo.t));
+    for (const t of [
+      "join", "seed", "role", "mvote", "muhtar", "night", "result", "phase",
+      "accuse", "second", "verdict", "spoiler", "badge",
+    ])
+      expect(types.has(t)).toBe(true);
+  });
+});
 
 function closeDayForTest(state: RoomState) {
   closeDay(state, "muhtar");

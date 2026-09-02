@@ -23,6 +23,7 @@ import {
   castVerdict,
   resolveVerdict,
   nextRound,
+  gvote,
 } from "../src/engine/engine";
 import { RoomState } from "../src/engine/types";
 import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay } from "./helpers";
@@ -30,6 +31,109 @@ import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay } from "./helpers"
 function closeDayForTest(state: RoomState) {
   closeDay(state, "muhtar");
 }
+
+/** Lynch `target` today with everyone alive voting guilty (verdict forced open by the host). */
+function lynchToday(state: RoomState, target: string) {
+  const alive = state.players.filter((p) => p.alive).map((p) => p.id);
+  const accuser = alive.find((id) => id !== target)!;
+  const seconder = alive.find((id) => id !== target && id !== accuser)!;
+  accuse(state, accuser, target);
+  second(state, seconder, target);
+  openVerdict(state, null, { force: true, by: "host" });
+  for (const id of alive) if (state.day.stage === "verdict") castVerdict(state, id, true);
+}
+
+describe("ghosts, badges, win", () => {
+  test("ghost prophecy during DAY; correct guess scores; Kâhin badge at END", () => {
+    const state = inDay(7);
+    const [vampir] = byRole(state, "vampir");
+    const ghostId = state.players.find((p) => p.id !== vampir && p.id !== "p0")!.id;
+    lynchToday(state, ghostId); // kill a villager first → ghost exists
+    expect(state.phase).toBe("EXECUTION");
+    nextRound(state);
+    resolveNight(state);
+    startDay(state);
+    expect(() => gvote(state, "p0", vampir!)).toThrow(EngineError); // alive cannot gvote
+    const ev = gvote(state, ghostId, vampir!);
+    expect(ev[0]!.memo).toEqual({ v: 2, g: "TEST", t: "gvote", r: 2, p: ghostId, x: vampir });
+    lynchToday(state, vampir!); // last vampire → koy wins → END
+    expect(state.phase).toBe("END");
+    expect(state.winner).toBe("koy");
+    expect(state.kahinScore[ghostId]).toBe(1);
+    const kinds = state.badges!.filter((b) => b.playerId === ghostId).map((b) => b.kind);
+    expect(kinds).toContain("kahin");
+  });
+  test("village win: alive non-vampires get kazanan, sitting Muhtar gets muhtar", () => {
+    const state = inDay(7);
+    const [vampir] = byRole(state, "vampir");
+    lynchToday(state, vampir!);
+    expect(state.winner).toBe("koy");
+    const winners = state.badges!.filter((b) => b.kind === "kazanan").map((b) => b.playerId).sort();
+    expect(winners).toEqual(
+      state.players.filter((p) => p.alive && p.role !== "vampir").map((p) => p.id).sort(),
+    );
+    if (state.muhtar)
+      expect(state.badges!.some((b) => b.kind === "muhtar" && b.playerId === state.muhtar)).toBe(true);
+    expect(state.phase).toBe("END");
+  });
+  test("vampires win at parity; all vampires (dead or alive) get kazanan", () => {
+    const state = inDay(7); // 1 vampir, 6 others
+    const [vampir] = byRole(state, "vampir");
+    let round = 1;
+    while (state.phase !== "END") {
+      const victim = state.players.find((p) => p.alive && p.id !== vampir)!.id;
+      lynchToday(state, victim);
+      if (state.phase === "END") break;
+      nextRound(state);
+      const next = state.players.find((p) => p.alive && p.id !== vampir)!.id;
+      nightAction(state, vampir!, next);
+      resolveNight(state);
+      if (state.phase === "END") break;
+      startDay(state);
+      round++;
+      if (round > 10) throw new Error("oyun bitmedi");
+    }
+    expect(state.winner).toBe("vampir");
+    expect(state.badges!.filter((b) => b.kind === "kazanan").map((b) => b.playerId)).toEqual([vampir]);
+  });
+  test("lynching the Deli: Deli wins alone, game continues, deli badge at END", () => {
+    const state = inDay(8);
+    const [deli] = byRole(state, "deli");
+    const [vampir] = byRole(state, "vampir");
+    lynchToday(state, deli!);
+    expect(state.deliWon).toBe(true);
+    expect(state.phase).toBe("EXECUTION");
+    nextRound(state);
+    resolveNight(state);
+    startDay(state);
+    lynchToday(state, vampir!);
+    expect(state.phase).toBe("END");
+    expect(state.badges!.some((b) => b.kind === "deli" && b.playerId === deli)).toBe(true);
+  });
+  test("END memos: phase END with winner, one badge memo per badge, seedr reveal", () => {
+    const state = inDay(7);
+    state.seedSalt = "tuz";
+    const [vampir] = byRole(state, "vampir");
+    const alive = state.players.filter((p) => p.alive).map((p) => p.id);
+    const accuser = alive.find((id) => id !== vampir)!;
+    const seconder = alive.find((id) => id !== vampir && id !== accuser)!;
+    accuse(state, accuser, vampir!);
+    second(state, seconder, vampir!);
+    openVerdict(state, null, { force: true });
+    let events: ReturnType<typeof castVerdict> = [];
+    for (const id of alive) if (state.day.stage === "verdict") events = castVerdict(state, id, true);
+    expect(state.phase).toBe("END");
+    expect(events.find((e) => e.memo.t === "phase")!.memo).toMatchObject({ ph: "END", winner: "koy" });
+    expect(events.filter((e) => e.memo.t === "badge").length).toBe(state.badges!.length);
+    expect(events.find((e) => e.memo.t === "seedr")!.memo).toEqual({
+      v: 2,
+      g: "TEST",
+      t: "seedr",
+      seed: 42,
+      salt: "tuz",
+    });
+  });
+});
 
 describe("day trial", () => {
   test("accusation is pending until seconded; seconder cannot be the accuser or the accused", () => {

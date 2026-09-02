@@ -526,6 +526,19 @@ export function resolveVerdict(state: RoomState): MemoEvent[] {
   return events;
 }
 
+/* ── HAYALET kehaneti (SPEC §1) ── */
+
+export function gvote(state: RoomState, ghostId: string, targetId: string): MemoEvent[] {
+  requirePhase(state, "DAY");
+  const ghost = player(state, ghostId);
+  if (ghost.alive) throw new EngineError("kehanet oyu yalnız hayaletlerin");
+  if (!player(state, targetId).alive) throw new EngineError("hedef zaten ölü");
+  state.gvotes[ghostId] = targetId;
+  return [
+    { to: "room", memo: memo(state, { t: "gvote", r: state.round, p: ghostId, x: targetId }) },
+  ];
+}
+
 /** EXECUTION → NIGHT (next round). */
 export function nextRound(state: RoomState, by = "auto"): MemoEvent[] {
   requirePhase(state, "EXECUTION");

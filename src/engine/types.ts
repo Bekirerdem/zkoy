@@ -1,35 +1,27 @@
-// ZKöy game engine types. The engine is a pure state machine: it never does
-// I/O. Chain writes are emitted as MemoEvent values (matching SPEC.md's memo
-// schema) and consumed by the Zcash service (real or mock).
+// ZKöy game engine types (v2). The engine is a pure state machine: it never
+// does I/O. Chain writes are emitted as MemoEvent values (SPEC.md §5) and
+// consumed by the Zcash service (real or mock).
 
 export type Role = "vampir" | "koylu" | "doktor" | "gozcu" | "deli";
+
+/** SPEC §1: LOBBY → SEÇİM(ELECTION) → GECE(NIGHT) → ŞAFAK(DAWN) → GÜNDÜZ(DAY) → İNFAZ(EXECUTION) → … → SON(END) */
 export type Phase =
   | "LOBBY"
+  | "ELECTION"
   | "NIGHT"
   | "DAWN"
   | "DAY"
-  | "VOTE"
   | "EXECUTION"
   | "END";
 
-/** Rençber = 1, Muhtar = 2, Ağa = 3 (weight equals tier). */
-export type Tier = 1 | 2 | 3;
-
-export const TIER_ENTRY_ZATS: Record<Tier, number> = {
-  1: 100_000, // 0.001 TAZ
-  2: 400_000, // 0.004 TAZ
-  3: 900_000, // 0.009 TAZ
-};
+/** Day sub-states: serbest → dava (savunma) → karar. */
+export type DayStage = "free" | "trial" | "verdict";
 
 export interface Player {
   id: string;
   name: string;
   role: Role | null;
   alive: boolean;
-  tier: Tier;
-  /** sha256(tier|salt) hex — mandatory for every player (tek mod: Ağalık). */
-  tierCommit: string;
-  tierSalt: string | null;
   will: string | null;
   /** Round the player died in, null while alive. */
   diedInRound: number | null;
@@ -38,9 +30,7 @@ export interface Player {
 export interface NightActions {
   /** vampire id -> target id */
   vampireTargets: Record<string, string>;
-  /** doctor's save target */
   doctorSave: string | null;
-  /** gozcu's inspect target */
   gozcuTarget: string | null;
 }
 
@@ -51,28 +41,54 @@ export interface NightResult {
   gozcuResult: { target: string; vamp: boolean } | null;
 }
 
-export interface VoteResult {
+export interface Trial {
+  accused: string;
+  accuser: string;
+  seconder: string;
+  /** voter id -> true (assın) / false (asmasın) */
+  verdicts: Record<string, boolean>;
+}
+
+export interface DayState {
+  stage: DayStage;
+  /** accuser id -> accused id (unseconded accusations, "askıda") */
+  accusations: Record<string, string>;
+  trial: Trial | null;
+  /** accused ids that already stood trial today (no second trial same day) */
+  triedToday: string[];
+}
+
+export interface Election {
+  candidates: string[];
+  /** voter id -> candidate id */
+  votes: Record<string, string>;
+}
+
+export interface VerdictResult {
   round: number;
+  accused: string;
   lynched: string | null;
   role: Role | null;
-  tally: Record<string, number>;
+  guilty: number;
+  notGuilty: number;
 }
 
 export type Winner = "koy" | "vampir" | null;
 
-/** A sealed memo destined for the chain, per SPEC.md's schema. */
+export type BadgeKind = "kazanan" | "deli" | "kahin" | "muhtar";
+
+export interface Badge {
+  playerId: string;
+  kind: BadgeKind;
+}
+
+/** A sealed memo destined for the chain, per SPEC.md §5. */
 export interface MemoEvent {
   /** "room" writes to the room account; {player} writes to that player's account. */
   to: "room" | { player: string };
   memo: Record<string, unknown>;
-  /** Zatoshis to attach; prize payments only, else dust default. */
+  /** Zatoshis to attach (prize payments only; default dust). */
   zats?: number;
-}
-
-export interface Payout {
-  playerId: string;
-  zats: number;
-  reason: string;
 }
 
 export interface RoomState {
@@ -80,17 +96,24 @@ export interface RoomState {
   phase: Phase;
   round: number;
   players: Player[];
+  /** Kanıtlı kura: seed + commitment sealed at start, salt injected by server, revealed at END. */
+  seed: number | null;
+  seedCommit: string | null;
+  seedSalt: string | null;
+  muhtar: string | null;
+  muhtarWeight: number;
+  /** Dead Muhtar who may still name an heir during the current DAWN/EXECUTION beat. */
+  heirPending: string | null;
+  election: Election;
   night: NightActions;
   lastNight: NightResult | null;
-  /** vote round: voter id -> target id */
-  votes: Record<string, string>;
-  /** ghost prophecy votes (Ö8 pipe; scoring gated behind Faz 2 E2E) */
+  day: DayState;
+  lastVerdict: VerdictResult | null;
+  /** ghost prophecy: ghost id -> predicted lynch target (reset daily) */
   gvotes: Record<string, string>;
-  lastVote: VoteResult | null;
+  /** ghost id -> correct prophecies */
+  kahinScore: Record<string, number>;
   winner: Winner;
   deliWon: boolean;
-  /** number of approved doctor saves (prim) */
-  doctorSaves: number;
-  potZats: number;
-  payouts: Payout[] | null;
+  badges: Badge[] | null;
 }

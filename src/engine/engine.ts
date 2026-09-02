@@ -145,3 +145,62 @@ export function start(
   state.round = 0;
   return events;
 }
+
+/* ── SEÇİM (SPEC §1 Muhtar) ── */
+
+export function nominate(state: RoomState, playerId: string): MemoEvent[] {
+  requirePhase(state, "ELECTION");
+  const p = player(state, playerId);
+  if (!p.alive) throw new EngineError("ölüler aday olamaz");
+  if (!state.election.candidates.includes(playerId))
+    state.election.candidates.push(playerId);
+  return []; // adaylık off-chain
+}
+
+export function electionVote(
+  state: RoomState,
+  voterId: string,
+  candidateId: string,
+): MemoEvent[] {
+  requirePhase(state, "ELECTION");
+  const voter = player(state, voterId);
+  if (!voter.alive) throw new EngineError("ölüler oy atamaz");
+  if (!state.election.candidates.includes(candidateId))
+    throw new EngineError("aday değil");
+  state.election.votes[voterId] = candidateId;
+  return [
+    { to: "room", memo: memo(state, { t: "mvote", r: 0, p: voterId, x: candidateId }) },
+  ];
+}
+
+/** True when every living player has voted (server uses it to resolve early). */
+export function electionComplete(state: RoomState): boolean {
+  return alivePlayers(state).every((p) => state.election.votes[p.id] !== undefined);
+}
+
+/**
+ * Plurality → Muhtar. Tie → seeded pick among tied. No candidates → seeded
+ * pick among the living (SPEC §1: "aday yoksa ebe kura çeker"). ELECTION → NIGHT.
+ */
+export function resolveElection(state: RoomState, tieSeed: number): MemoEvent[] {
+  requirePhase(state, "ELECTION");
+  const rng = mulberry32(tieSeed);
+  let pool: string[];
+  if (state.election.candidates.length === 0) {
+    pool = alivePlayers(state).map((p) => p.id);
+  } else {
+    const tally: Record<string, number> = {};
+    for (const c of state.election.candidates) tally[c] = 0;
+    for (const cand of Object.values(state.election.votes))
+      tally[cand] = (tally[cand] ?? 0) + 1;
+    const top = Math.max(...Object.values(tally));
+    pool = Object.keys(tally).filter((c) => tally[c] === top);
+  }
+  const muhtar = pool[Math.floor(rng() * pool.length)]!;
+  state.muhtar = muhtar;
+  state.phase = "NIGHT";
+  state.round = 1;
+  return [
+    { to: "room", memo: memo(state, { t: "muhtar", p: muhtar, w: state.muhtarWeight }) },
+  ];
+}

@@ -7,8 +7,58 @@ import {
   muhtarWeightFor,
   EngineError,
   MAX_PLAYERS,
+  nominate,
+  electionVote,
+  electionComplete,
+  resolveElection,
 } from "../src/engine/engine";
-import { makeRoom, byRole, dealt } from "./helpers";
+import { makeRoom, byRole, dealt, electMuhtar } from "./helpers";
+
+describe("election", () => {
+  test("only alive players nominate and vote; votes must target a candidate", () => {
+    const state = dealt(7);
+    expect(() => electionVote(state, "p1", "p0")).toThrow(EngineError); // p0 not a candidate
+    nominate(state, "p0");
+    const events = electionVote(state, "p1", "p0");
+    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "mvote", r: 0, p: "p1", x: "p0" });
+    expect(electionComplete(state)).toBe(false);
+  });
+  test("plurality wins; muhtar memo carries weight; phase → NIGHT round 1", () => {
+    const state = dealt(7);
+    nominate(state, "p0");
+    nominate(state, "p1");
+    for (const v of ["p2", "p3", "p4"]) electionVote(state, v, "p0");
+    for (const v of ["p5", "p6"]) electionVote(state, v, "p1");
+    electionVote(state, "p0", "p1");
+    electionVote(state, "p1", "p0");
+    expect(electionComplete(state)).toBe(true);
+    const events = resolveElection(state, 99);
+    expect(state.muhtar).toBe("p0");
+    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "muhtar", p: "p0", w: 2 });
+    expect(state.phase).toBe("NIGHT");
+    expect(state.round).toBe(1);
+  });
+  test("tie is broken by the seed among tied candidates; no candidates → seed picks anyone alive", () => {
+    const state = dealt(8);
+    nominate(state, "p0");
+    nominate(state, "p1");
+    electionVote(state, "p2", "p0");
+    electionVote(state, "p3", "p1");
+    resolveElection(state, 5);
+    expect(["p0", "p1"]).toContain(state.muhtar);
+
+    const empty = dealt(8);
+    resolveElection(empty, 5);
+    expect(empty.muhtar).not.toBeNull();
+    expect(empty.players.find((p) => p.id === empty.muhtar)!.alive).toBe(true);
+  });
+  test("13 players elect a 3x Muhtar", () => {
+    const state = dealt(13);
+    electMuhtar(state, "p4");
+    expect(state.muhtar).toBe("p4");
+    expect(state.muhtarWeight).toBe(3);
+  });
+});
 
 describe("rolePlan v2", () => {
   test("vampire count follows the composition table", () => {

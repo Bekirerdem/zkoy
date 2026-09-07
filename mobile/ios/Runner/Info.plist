@@ -6,6 +6,8 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Odaya katılmak için perdedeki QR kodunu okur.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Zkoy App</string>
 	<key>CFBundleExecutable</key>

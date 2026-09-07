@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Oyun sunucuda oynanır: sürüm derlemesi de ağa çıkmalı (Flutter şablonu bunu yalnız debug/profile'a koyar). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="zkoy_app"
         android:name="${applicationName}"

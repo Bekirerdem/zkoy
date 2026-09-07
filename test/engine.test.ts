@@ -29,6 +29,11 @@ import {
 import { MemoEvent, RoomState } from "../src/engine/types";
 import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay } from "./helpers";
 
+/** Reads the phase through a call so TS control-flow narrowing does not freeze it mid-loop. */
+function phaseOf(state: RoomState) {
+  return state.phase;
+}
+
 describe("will + envelope + replay", () => {
   test("will updates while alive, 200 char cap, dead rejected", () => {
     const state = inDay(7);
@@ -142,18 +147,18 @@ describe("ghosts, badges, win", () => {
     while (state.phase !== "END") {
       const victim = state.players.find((p) => p.alive && p.id !== vampir)!.id;
       lynchToday(state, victim);
-      if (state.phase === "END") break;
+      if (phaseOf(state) === "END") break;
       nextRound(state);
       const next = state.players.find((p) => p.alive && p.id !== vampir)!.id;
       nightAction(state, vampir!, next);
       resolveNight(state);
-      if (state.phase === "END") break;
+      if (phaseOf(state) === "END") break;
       startDay(state);
       round++;
       if (round > 10) throw new Error("oyun bitmedi");
     }
     expect(state.winner).toBe("vampir");
-    expect(state.badges!.filter((b) => b.kind === "kazanan").map((b) => b.playerId)).toEqual([vampir]);
+    expect(state.badges!.filter((b) => b.kind === "kazanan").map((b) => b.playerId)).toEqual([vampir!]);
   });
   test("lynching the Deli: Deli wins alone, game continues, deli badge at END", () => {
     const state = inDay(8);
@@ -334,7 +339,7 @@ describe("election", () => {
     electionVote(state, "p2", "p0");
     electionVote(state, "p3", "p1");
     resolveElection(state, 5);
-    expect(["p0", "p1"]).toContain(state.muhtar);
+    expect(["p0", "p1"]).toContain(state.muhtar!);
 
     const empty = dealt(8);
     resolveElection(empty, 5);

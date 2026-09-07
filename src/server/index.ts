@@ -179,6 +179,10 @@ async function handle(req: Request): Promise<Response> {
         return json({ ok: true });
       }
       if (req.method === "POST" && sub === "reveal") {
+        // Görüş anahtarı, tuzlar ve roller yalnız oyun bitince açılır; oda
+        // kodunu bilen herkes oyun ortasında gece hamlelerini okuyabiliyordu.
+        if (room.state.phase !== "END")
+          throw new EngineError("ifşa yalnız oyun bitince");
         return json({
           ufvk: room.ufvk,
           roomAddress: room.address,

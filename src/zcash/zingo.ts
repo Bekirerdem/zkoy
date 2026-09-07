@@ -100,7 +100,15 @@ async function runOnlineSession(
   return withWalletLock(dataDir, async () => {
     const p = Bun.spawn(
       [ZINGO, "--chain", "testnet", "--server", SERVER, "--data-dir", dataDir],
-      { stdin: "pipe", stdout: "pipe", stderr: "pipe" },
+      {
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+        // zingolib dev HEAD (Eylül 2026) senkron bitişini yalnız tracing ile
+        // bildiriyor: RUST_LOG=info olmadan stderr'de işaret yok, oturum
+        // SYNC_WAIT_MS boyunca boşuna bekler.
+        env: { ...process.env, RUST_LOG: process.env.RUST_LOG ?? "info" },
+      },
     );
     const killer = setTimeout(() => p.kill(), timeoutMs);
     const decoder = new TextDecoder();
@@ -117,6 +125,8 @@ async function runOnlineSession(
     const deadline = Date.now() + SYNC_WAIT_MS;
     while (Date.now() < deadline) {
       if (
+        /SYNC_SPAN=close/.test(errBuf) ||
+        /Sync successfully shutdown/.test(errBuf) ||
         /Sync completed/.test(errBuf) ||
         /no sync indexer selected/.test(errBuf)
       )

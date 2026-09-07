@@ -9,15 +9,28 @@
 // - quicksend accepts a multi-receiver JSON arg → one tx can carry many memos.
 // - Memos are readable from the mempool already (no block wait for reads).
 
+import { homedir } from "node:os";
+import { join as joinPath } from "node:path";
 import { MemoEvent } from "../engine/types";
 import { RoomWallet, SealedMemo, ZcashService } from "./service";
 
+// Defaults follow the workstation layout (repo next to zcash-camp, wallets in
+// the home dir); every one of them is overridable by env for the VPS.
+const REPO_ROOT = joinPath(import.meta.dir, "..", "..");
 const ZINGO =
   process.env.ZINGO_BIN ??
-  "C:\\Users\\l3eki\\Desktop\\Web3-projeleri\\zcash-camp\\zingolib\\target\\release\\zingo-cli.exe";
-const OPS_DIR = process.env.ZKOY_OPS_DIR ?? "C:\\Users\\l3eki\\.zingo-testnet";
+  joinPath(
+    REPO_ROOT,
+    "..",
+    "zcash-camp",
+    "zingolib",
+    "target",
+    "release",
+    process.platform === "win32" ? "zingo-cli.exe" : "zingo-cli",
+  );
+const OPS_DIR = process.env.ZKOY_OPS_DIR ?? joinPath(homedir(), ".zingo-testnet");
 const WALLETS_ROOT =
-  process.env.ZKOY_WALLETS_ROOT ?? "C:\\Users\\l3eki\\.zkoy-wallets";
+  process.env.ZKOY_WALLETS_ROOT ?? joinPath(homedir(), ".zkoy-wallets");
 const SERVER = process.env.ZKOY_LWD ?? "https://testnet.zec.rocks:443";
 const DUST_ZATS = 10_000;
 

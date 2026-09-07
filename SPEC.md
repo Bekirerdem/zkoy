@@ -1,277 +1,291 @@
-# ZKöy v2 — Tasarım Spec'i (yeniden tasarım)
+# ZKöy v3 — Ürün Spec'i
 
 > **ZKöy** = ZK + köy. Vampir Köylü on Zcash. Protokol katmanının adı **Mühür**.
-> Repo `Bekirerdem/zkoy`. Takım: Bekir (sunucu + Zcash) · Selinay (Flutter).
+> Repo `Bekirerdem/zkoy` (tek geliştirme dalı `main`; v1 hackathon sürümü `v1` dalı ve `v1-hackathon` etiketi). Takım: Bekir (sunucu + Zcash) · Selinay (Flutter).
 > Bu dosya tek doğruluk kaynağı. Burada olmayan şey yapılmaz; kapsam tartışması çıkarsa buraya bakılır.
-> v1 (17 Ağu 2026 challenge sürümü) `docs/SPEC-v1.md` altında arşivdir.
+> v1 (17 Ağu 2026) `docs/SPEC-v1.md`, v2 (2 Eyl 2026, yeniden tasarım) `docs/SPEC-v2.md` altında arşivdir. v3 bu ikisinin üstüne **ürünleştirme** katmanıdır; oyun kuralları v2'den gelir, yalnız §2'de işaretli değişiklikler yapılır.
 
-## 0. Neden v2
+## 0. Neden v3
 
-İki salon oyunu (17 Ağu jüri, 29 Ağu workshop) aynı şeyi gösterdi: oyun sevildi ama tadı çıkmadı. Kök neden sayaç: 30 sn tartışma + 30 sn oy, masayı okuyamayan bir saat. Gerçek oyundaki tartışma → birine takılma → suçlama → ikna savaşı → mutabakat akışı yoktu; gizli ve ağırlıklı oy masanın tek ipucunu (kim kime oy verdi) ortadan kaldırıyordu; potlu Ağalık modeli potsuz dünyada anlamsızlaştı.
+v2 oyunu masada oynanır hâle getirdi: sayaç yerine ebe, gizli oy yerine açık dava, pot yerine sponsorlu ödül. v3'ün sorusu farklı: **bu oyun bir ürün olarak nasıl yaşar?** 5-7 Eylül 2026 konuşmalarından (Bekir, Selinay, prova elleri, Zcash güncellemeleri) çıkan kararlar:
 
-**v2 tezi:** Uygulama saat değil ebe olur. Fazları masa kapatır. Oylar masadaki gibi açık, sırlar gecede. Zcash'in işi gece hamlelerini, kurayı ve kaydı mühürlemek; ölülere anahtar vermek; oyun sonunda herkese doğrulatmak.
-
-**2 Eylül 2026 kararları:** seviye/Ağalık kaldırıldı · pot kaldırıldı, yerine sponsorlu ödül havuzu · tek seçilmiş Muhtar · gündüz sayaçsız dava akışı · iki mod tek uygulama · ekonomik zincir modu varsayılan · Zakura Common şimdi, Zakura düğümü grant sonrası · mağaza hedefi geri açıldı (18 Ağu "PWA yeter" kararı bilinçli tersine çevrildi; salon yine PWA/QR ile gider).
+- Müşteri **grup**: 7-15 kişilik, birlikte vakit geçirmek isteyen arkadaş masası. Gerçek dünyada yıllardır oynanan oyunun uygulaması.
+- Kanıt **"oynanıyor"**: dağıtım kendi çevremiz artı pazarlama; tur (ZcashTR, Ekim) güçlendirici koz, tek kanal değil. Grant şansı gerçek oyuncu sayısıyla büyür.
+- **Mobil önce**, web sonra; uygulama mağazada ücretsiz.
+- **Hesap ve profil** var: okey odası modeli, oda kur / kodla gir / rastgele gir.
+- **Para ilk sürümde yok.** Oyuncudan para alınmaz, oyuncu para koymaz. Puan, rozet ve sezon tablosu oyunlaştırmanın omurgası. Sponsorlu ödül yalnız etkinlik odalarında. VIP (oyuncu potu) ertelendi, §13.
+- **Mühür değişmez.** Rol, gece, oy, kura zincirde. "Mühür giderse grant gider." Zincir noterdir, perde değil.
+- **Zakura Common** entegre edildi (7 Eyl): gönderim 3,5 s → 1,0 s. Detay `docs/zingo-patch.md`.
+- **Ölçek** baştan: aynı anda yüzlerce oda, herkes kendi odasını kurar.
 
 ---
 
-## 1. Oyun kuralları v2
+## 1. Ürün çerçevesi
 
-### Köy kompozisyonu (oyun başında herkese ilan edilir)
+| Soru | Karar |
+|---|---|
+| Kim oynar | 7-15 kişilik gruplar; yaş 12+ |
+| Nerede | Salon (aynı mekân) ve uzaktan (herkes evinde); iki ayrı mod, karışık masa yok |
+| Ne kadar | Ücretsiz; hesap isteğe bağlı (misafir girer), rozet ve puan taşımak için hesap |
+| Platform | Flutter: iOS ve Android mağazada; aynı kod web'de (PWA) etkinlik girişi için |
+| Gelir | İlk sürümde yok; sonra etkinlik organizatörü ücreti, grant, kozmetik |
+| Kanıt | oyun · gerçek oyuncu · hesap · şehir · zincir kaydı |
 
-| Oyuncu | Vampir | Muhtar ağırlığı | Deli |
+---
+
+## 2. Oyun kuralları v3
+
+v2 §1 aynen geçerlidir (kompozisyon tablosu, roller, seçim, faz döngüsü, dava akışı, kazanma). Değişen ve netleşen maddeler:
+
+### 2.1 Oda kuralları (kurucu oda kurarken seçer)
+
+| Kural | Seçenekler | Varsayılan | Kaynak |
 |---|---|---|---|
-| 7-9 | 1 | 2 | 8'den itibaren |
-| 10-12 | 2 | 2 | var |
-| 13-15 | 3 | 3 | var |
+| Perde | var / yok | yok (salonda perde varsa açılır) | Selinay: "topluluklarda perdesiz de oynanabilmeli" |
+| Gözcü | var / yok | 13+ oyuncuda var, 12 ve altında yok; kurucu değiştirebilir | Bekir 7 Eyl: "12 altında çok güçlü"; Selinay: "oda kurulurken sorulsun" |
+| Sanık kendi davasında oy kullanır | evet / hayır | **hayır** | Bekir 7 Eyl; prova: Muhtar sanıkken çift oyla kendini kurtarıyordu |
 
-Doktor ×1, Gözcü ×1 her zaman; kalan Köylü. Giriş ücreti, seviye, pot yok. Herkesin oyu 1, Muhtar'ınki tabloya göre.
+Sanık oy kullanmayınca "Muhtar ağırlığı kendi davasında sayılır mı" sorusu düşer: sayılmaz, çünkü oy yok. Karar oyu yarı hesabı yaşayan **oy kullanabilenlerin** toplam ağırlığı üzerinden yapılır (sanık hariç).
 
-### Roller
+### 2.2 Muhtar
 
-| Rol | Gece | Ne görür |
-|---|---|---|
-| Vampir | Kurban seçer; birden fazlaysa çoğunluk, eşitlikte ilk seçen | Birbirlerini bilir; uzaktan modda özel ses+chat kanalı |
-| Doktor | Birini korur, kendini de koruyabilir; her gece serbest, aynı kişiyi üst üste koruyabilir | Sabah kurtardıysa ilanı görür |
-| Gözcü | Birini sorgular | Yalnız kendi ekranında "vampir mi" cevabı |
-| Deli | Hamlesi yok | Asılırsa tek başına kazanır, Deli rozeti; oyun sürer |
-| Köylü | Hamlesi yok; şüphe işaretler (sabah rozet) | — |
-| Hayalet (ölü hâli) | Kehanet oyu: "sıradaki asılan kim" | Oda anahtarıyla her şeyi, gece hamleleri dahil; yaşayanlarla konuşamaz; uzaktan modda hayalet kanalı |
+- **Her oyunda vardır.** Seçim isteğe bağlı değil; aday yoksa kura, eşitlikte tohumlu kura. Soru "seçelim mi" değil "kim olsun".
+- Makamdır, rol değildir; vampir de seçilebilir. Ekranda rozetle görünür; roller görünmez.
+- Yetkileri: oyu 2 (13+ oyuncuda 3), "oylamaya geç", "günü kapat", ölürken halef. Moderasyon yetkisi yok, o kurucuda (§6).
 
-### Muhtar (makam, rol değil)
+### 2.3 Puan, rozet, sezon (Selinay: "para olmazsa puan mantığı")
 
-- Roller dağıtıldıktan hemen sonra, ilk geceden önce **SEÇİM** fazı. İsteyen tek tuşla aday olur. Herkes açık oy verir, oylar anında görünür. En çok oy → Muhtar. Eşitlikte ebe kura çeker; aday yoksa ebe kura çeker.
-- Rolü gizli kalır. Vampir de seçilebilir.
-- Ayrıcalık: oyu tabloya göre 2 veya 3 sayılır; "oylamaya geç" ve "günü kapat" komutları onda.
-- Ölürken (gece veya infaz) yaşayanlardan halef gösterir; göstermezse köy Muhtar'sız devam eder, komutlar kurucuya geçer.
-- Seçim aynı zamanda ısınma turu: oyunun ilk oyu kimsenin ölmediği bir oydur, açık oy ve sayım burada öğrenilir.
+- **Rozet** zincirde (v2 §5): kazanan, Deli, Kâhin, Muhtar, şehir. Kalıcı, silinmez.
+- **Puan** sunucuda, temsili, oyda ağırlığı yok: kazanan taraf +3, Muhtar seçilmek +1, Deli olarak asılmak +3, doğru kehanet +1, oyunu bitirmek (ayrılmamak) +1.
+- **Sezon tablosu:** sezon = takvim ayı; tablo sıfırlanır, rozetler kalır. Genel tablo ayrıca.
+- **Unvan** rozet sayısından türer; isimler Bekir'in sesinden (§15).
+- Galibiyet tablosu ve profil kartı (oyun sayısı, kazanma oranı, rozetler) hesabı olanlara.
 
-### Faz döngüsü
+### 2.4 Değişmeyenler
 
-`LOBBY → SEÇİM → GECE → ŞAFAK → GÜNDÜZ → İNFAZ → GECE … → SON`
-
-- **GECE:** aktörler hamle yapar. Bütün aktörler bitirince gece biter, sayaç yok.
-- **ŞAFAK:** ölen ilan edilir, vasiyeti perdeye düşer, hayalet olur; Muhtar öldüyse halef seçimi.
-- **GÜNDÜZ (sayaçsız), üç iç durum:** `serbest` → `dava` → `karar`.
-  1. **Suçlama.** Yaşayan biri birini suçlar, bir başkası destekler → dava açılır. Aynı anda tek dava; aynı kişiye aynı gün ikinci dava açılmaz. Desteksiz suçlama askıda kalır, başka suçlama açılabilir.
-  2. **Savunma.** Suçlanan konuşur. "Savunmam bitti" deyince ya da Muhtar "oylamaya geç" deyince biter.
-  3. **Karar oyu.** Herkes "assın" / "asmasın", açık ve anlık. "Assın" ağırlığı yaşayanların toplam ağırlığının **yarısını geçerse** asılır. Sonuç matematiksel olarak kesinleşince oylama kendiliğinden kapanır.
-  4. **Sonuç.** Asılırsa → İNFAZ. Asılmazsa gündüz `serbest`e döner, yeni dava açılabilir.
-  5. **Gün kapanışı.** Muhtar (yoksa kurucu) "günü kapat" → GECE.
-- **İNFAZ:** rol açıklanır, vasiyet perdeye, Deli kontrolü, Muhtar öldüyse halef; sonra GECE.
-- **SON:** kazanan ilanı, ifşa partisi, rozetler, ödül havuzu dağıtımı.
-
-### Kazanma
-
-Tüm vampirler ölürse köy; vampir sayısı sağ köylüye eşitlenirse vampirler. Deli asılırsa Deli kazanır (rozet), oyun sürer.
-
-### Süreler
-
-Salon modunda **hiç yok**; tempoyu masa belirler. Uzaktan modda yalnız takılmaya karşı **üst sınırlar** (sigorta, tempo değil): gece 2 dk, savunma 2 dk, karar oyu 1 dk, gün 10 dk. Üst sınır dolunca faz "pas" ile kapanır.
-
-### Kopma
-
-Düşen oyuncu token'la geri döner ve son state'i alır. Salon modunda Muhtar/kurucu düşen oyuncuyu "pas" sayabilir.
+Açık oy (ekranda açık, zincirde mühürlü), sayaçsız salon, uzaktan modda üst sınırlar, hayalet ve kehanet, kanıtlı kura, ifşa partisi. Gizli oyun geri dönüşü yalnız test masaları "keyif vermedi" derse gündeme gelir (Selinay), spec'te yok.
 
 ---
 
-## 2. Modlar
-
-Tek uygulama (Flutter: iOS, Android, Web). Oda kurulurken kurucu mod seçer. Mod yalnız üç şeyi değiştirir; kurallar, ekranlar ve motor aynıdır.
+## 3. Modlar
 
 | | Salon | Uzaktan |
 |---|---|---|
-| Ses | Kapalı, masa konuşur | Açık, LiveKit odası |
-| Chat | Yok | Açık: köy / vampir / hayalet kanalları |
-| Üst sınırlar | Yok | Var |
-| Meydan nerede | Perdede (büyük ekran) | Herkesin ekranında |
-| Telefon | Sessiz kumanda | Oyunun kendisi |
+| Ses | Kapalı, masa konuşur | **İlk sürümde yazılı chat**; ses (LiveKit) sonraki sürüm |
+| Chat | Yok | Kanal etiketli: köy / vampir / hayalet |
+| Perde | İsteğe bağlı; yoksa meydan telefonda, kumanda altında | Meydan herkesin ekranında |
+| Üst sınırlar | Yok | Var: gece 2 dk, savunma 2 dk, karar 1 dk, gün 10 dk |
+| Giriş | QR ya da kod; oyuncu indirmeden web'den girebilir | Hesapla; oda kodu, davet linki ya da açık oda listesi |
 
-**Meydan (ortak sahne):** yuvarlak köy meydanı, her oyuncunun avatarı. Yaşayanlar çemberde, ölenler kenarda soluk. Muhtar'da rozet. Dava açılınca suçlanan ortaya gelir; suçlayan ve destekçi ona bakar. Karar oyunda avatarlar "assın"/"asmasın" tarafına döner, sayım ortada büyür. Gece meydan kararır; vampirlerin ekranında yalnız vampirler ışıklı. Kenarda mühür sayacı ve blok saati; ilanlar meydanın üstünden geçer.
+Perde varsa telefon kumanda sekmesinde açılır, kaydırmayla meydana geçilir; perde yoksa telefon doğrudan meydanda açılır (17 Ağustos dersi: kafalar masada olsun, perde varken varsayılan kumanda).
 
-**Salon:** kurucu odayı kurar, perde QR gösterir, oyuncular okutup tarayıcıdan (PWA) ya da uygulamadan girer. Telefonda yalnız sırlar ve düğmeler: rol kartı, gece hamlesi, suçla/destekle, assın/asmasın, vasiyet, hayalet defteri. Gündüz ekranı tek cümle: "meydanda konuş", altında dava düğmeleri.
-
-**Uzaktan:** meydan herkesin ekranında, yanında chat, ses sürekli açık. Konuşan avatar parlar. Ses izinleri kuralı takip eder: gündüz herkes açık; gece herkes kapalı, vampirler kendi aralarında; hayaletler kendi kanalında; savunmada suçlananın sesi öne çıkar.
-
-**Ortak:** hayalet ekranı, ifşa partisi, seyirci linki (sunucunun süzülmüş görünümü; gece sırlarını göstermez, oy ve ses yok).
-
-**Etkinlik etiketi:** salon odası bir etkinlik koduna bağlanabilir (şehir turu). Rozetler o şehrin adıyla basılır, şehirler arası tablo bundan türer.
-
-**Kapsam dışı:** salon oyununa uzaktan katılım (karışık masa ses düzenini bozar).
+Ses ertelemesinin sebebi maliyet: yüzlerce eşzamanlı ses odası kendi sunucumuzda çalışmaz, LiveKit Cloud gerekir. Online kurt adam oyunlarının çoğu yazılı chat ile oynanıyor; rastgele oda modeli yazılı chat ile başlar.
 
 ---
 
-## 3. Mimari
+## 4. Hesap ve profil
 
-İlke: **tempo sunucudan, kanıt zincirden** — tempo artık sayaçtan değil olaylardan.
-
-```
-[Flutter: iOS / Android / Web]  ──WebSocket──▶  [Bun sunucu]
-        │                                          ├─ Motor (saf durum makinesi)
-        │ ses (WebRTC)                             ├─ Oda katmanı (tetikler, izinler, yayın)
-        ▼                                          ├─ SQLite (kalıcılık)
-   [LiveKit]  ◀────── izin komutları ──────────────┤
-                                                   └─ Zincir servisi ──▶ zingolib+Common ──▶ lightwalletd
-```
-
-- **Motor** (`src/engine`): saf fonksiyonlar, memo olayı döndürür. Fazlar §1. Süre bilmez; yalnız "hamle geldi" ve "komut geldi" bilir. Testler `test/engine.test.ts` genişler.
-- **Oda katmanı** (`src/server/rooms.ts`): üç tetik kaynağı — aktörler tamamlandı, Muhtar/kurucu komutu, uzaktan modda üst sınır. Her faz değişiminde WebSocket'e yayınlar ve LiveKit'e izin komutu gönderir.
-- **Gerçek zamanlı:** polling kalkar. Bun yerleşik WebSocket, oda başına kanal. Her olayda **tam state** gönderilir; istemci fark hesaplamaz. Chat aynı bağlantıda, kanal etiketiyle. Yeniden bağlanan token'la son state'i alır.
-- **Ses:** LiveKit sunucusu Docker'da, TURN gömülü. Bun sunucu kısa ömürlü LiveKit token'ı üretir (kimlik + izinler). Vampir gece kanalı ve hayalet kanalı katılımcı izinleriyle; ayrı oda açılmaz. Salon modunda hiç bağlanılmaz.
-- **Kalıcılık:** SQLite, Bun yerleşik sürücü, tek dosya. Oda state'i her olayda snapshot; sunucu açılınca SON olmayan odalar geri yüklenir. Mühür kuyruğu kalıcı.
-- **Zincir servisi:** cüzdanlar sunucuda (cam ebe modeli sürüyor). **Ekonomik mod (varsayılan):** ops gönderir, faz başına toplu çok-memo tx. **Kanıt modu (düğme):** oyuncu cüzdanından hamle başına tx. Proving ayrı işçi süreçte, düşük öncelikte. zingolib forku Ironwood'a rebase + Zakura Common crate'lerine bağlanır. Lightwalletd: topluluk sunucusu (zec.rocks / lightwalletd.com); kendi Zakura arşiv düğümü (≈252 GiB) grant sonrası.
-- **Perde:** sunucu render HTML kalkar; perde = Flutter web'in seyirci görünümü, aynı meydan bileşeni, URL ile açılır.
-- **Dağıtım:** VPS Hetzner CX32 sınıfı (4 vCPU / 8 GB / 80 GB). zkoy.fun doğrudan VPS'e, tünel emekli. HTTP+WS Cloudflare arkasında; LiveKit medya DNS-only alt alan adından doğrudan VPS'e. iOS derlemesi Selinay'ın Mac'inde, onun Apple Developer hesabından; Android Windows'tan.
-- **Riskler:** zingolib Ironwood rebase **yüksek** · Common entegrasyonu **orta** · gece ses izinleri **orta** · SQLite'tan geri yükleme **orta** · WS yeniden bağlanma **düşük**.
-
----
-
-## 4. Veri şeması (SQLite)
-
-İlke: motor state'i JSON snapshot; analiz, rozet ve ifşa için ayrıca olay günlüğü.
-
-- **users**: id, görünen ad, avatar, giriş türü (misafir / Apple / Google), cihaz anahtarı, oluşturma. E-posta istenmez.
-- **rooms**: kod, mod, kurucu, etkinlik kodu (null olabilir), durum, oda cüzdan adresi + görüntüleme anahtarı, state snapshot JSON, son güncelleme.
-- **room_players**: oda, kullanıcı, oyuncu kimliği, koltuk, avatar, token hash, cüzdan adresi, katılma zamanı.
-- **games**: id, oda, başlangıç, bitiş, kazanan, oyuncu sayısı, kompozisyon JSON, kura taahhüdü, kura açılımı.
-- **events**: id, oyun, tur, faz, tür (katıldı, rol, muhtar oyu, muhtar, gece hamlesi, suçlama, destek, savunma bitti, karar oyu, infaz, vasiyet, kehanet, halef, faz geçişi, gün kapandı, ödül), yapan, hedef, payload JSON, zaman, mühür txid, mühür durumu. Zincirdeki her memo'nun ikizi; perde ve ifşa partisi buradan okur.
-- **seal_queue**: id, olay(lar), gönderen cüzdan, alıcı adres, memo JSON, deneme, durum, txid. Kalıcı kuyruk.
-- **chat_messages**: id, oda, kanal, oyuncu, metin, tur, faz, zaman. **Oyun bitince silinir.** Şikayet edilen mesaj şikayet anında `reports` tablosuna dondurulur, yalnız o kalır.
-- **reports**: id, oda, şikayet eden, şikayet edilen, mesaj kopyası / ses zaman damgası, sebep, durum.
-- **badges**: id, kullanıcı, oyun, tür (kazanan, Deli, Kâhin, Muhtar, şehir), etiket, etkinlik kodu, memo txid, zaman.
-- **tour_events**: kod, şehir, tarih, ev sahibi. Şehir tablosu buradan ve badges'tan türer.
-
-**WebSocket mesajları.** Sunucudan: `state`, `chat`, `announce`, `voice_grant`. İstemciden: `action` (motor hamlesi), `chat`, `command` (Muhtar/kurucu tetikleri), `report`. Her `state` tam state taşır.
-
-**Gizlilik:** kişisel veri ad ve avatar. Cüzdan anahtarları VPS diskinde, veritabanında değil.
-
----
-
-## 5. Zcash katmanı
-
-Primitifler: şifreli memo · mühürlü oy · görüntüleme anahtarı · kura taahhüdü · (kanıt modunda) oyuncunun kendi imzası · kalıcı rozet.
-
-### Cüzdan düzeni
-- **Ops**: fonlu; ekonomik modda tüm gönderimler buradan; ödül havuzu buradan dağıtılır.
-- **Oda**: alıcı; UFVK = hayalet anahtarı + oyun sonu denetim anahtarı.
-- **Oyuncu**: alıcı (rol kartı, spoiler, rozet, ödül). Kanıt modunda ayrıca gönderici: katılımda ops altı notluk toz yollar (tek not ardışık gönderimi öldürür), oyun sonunda kalan toz ops'a süpürülür.
-
-### Zincir modları (aynı kod, kuyrukta düğme)
-
-| Mod | Kim gönderir | Oyun başına tx | Oyun başına ücret (ZEC≈$800) |
-|---|---|---|---|
-| **Ekonomik (varsayılan)** | Ops, faz başına toplu tx | 5-10 | ≈ $0,5-1 |
-| **Kanıt** | Oyuncu cüzdanından, hamle başına | 100-150 | ≈ $12-18 |
-
-Kanıt modu yalnız fonlandığında (sponsor/turnuva) açılır.
-
-### Memo protokolü v2
-
-JSON ≤512B. Ok yönü gönderen cüzdanı gösterir; ekonomik modda tüm "oyuncu→" satırları ops'tan çıkar ve `p` (oyuncu) alanı taşır. Tüm memo'larda `v:2` ve `g` (oda kodu) var; tablo sadeleştirilmiş.
-
-```
-ops→oda      seed     {c: sha256(seed|salt)}         kura taahhüdü, oyun başı
-ops→oyuncu   role     {role}                          rol kartı
-oyuncu→oda   mvote    {r:0, x}                        Muhtar oyu
-ops→oda      muhtar   {p, w}                          seçim sonucu ve ağırlık
-oyuncu→oda   night    {r, x}                          vampir / doktor / gözcü hamlesi
-ops→oda      seerr    {r, x, vamp}                    gözcü cevabı
-oyuncu→oda   accuse   {r, x}   ·   second {r, x}      suçlama ve destek
-oyuncu→oda   verdict  {r, x, y:1|0}                   assın / asmasın
-ops→oda      phase    {r, ph, by}                     faz geçişi ve kimin tetiklediği
-ops→oda      result   {r, died, saved, lynched, role}
-oyuncu→oda   will {txt} · heir {x} · gvote {r, x}
-ops→ölen     spoiler  {roles}
-ops→oda      chatroot {r, ph, h}                      faz sonu chat hash'i (uzaktan mod)
-ops→oda      seedr    {seed, salt}                    kura açılımı, oyun sonu
-ops→oyuncu   badge    {kind, label, event}            kalıcı rozet
-ops→oyuncu   prize    {zat, reason, event}            ödül havuzu payı (gerçek ödeme)
-```
-
-### Kanıtlı kura
-Rol dağıtım tohumu oyun başında taahhüt olarak mühürlenir, sonunda açılır. Aynı tohumla karıştırma tekrar koşulur, rollerin oyundan önce sabitlendiği görülür. (v1'de tohum taahhütsüzdü.)
-
-### İfşa partisi v2
-Oda anahtarı + (kanıt modunda) oyuncu anahtarları + kura tohumu + olay günlüğü → zaman çizelgesi: kim ne zaman kimi suçladı, kim kime "assın" dedi, vampirler geceleri kimi seçti. Meydanda replay; her satırın explorer linki.
-
-### Hayalet ≠ seyirci
-Hayalet oda anahtarını canlı alır (ölüdür, oyuna sadıktır). Seyirci linki sunucunun süzülmüş görünümüdür; anahtar yalnız oyun sonunda açılır.
-
-### Ödül havuzu (sponsorlu)
-Havuzu **oyuncu değil organizatör/sponsor** doldurur (ZcashTR turu, topluluk, marka). Oyuncu para koymaz → bahis değil, yarışma. Oyun sonunda ops cüzdanından kazananlara **anında** `prize` memo'lu gerçek ödeme; ekranda "ödül geldi". Kazanan ödülü oyun cüzdanında bırakır ya da **Zashi köprüsü** ile kendi adresine alır. Sponsor nasıl isterse öyle öder (TRY/USDT/ZEC), biz ZEC'e çeviririz; kazanan borsa linkiyle TRY'ye çevirir. Havuz ve dağıtım tablosu etkinlik kaydında yazılıdır (mağaza yarışma kuralı için).
-
-### Zashi köprüsü (isteğe bağlı)
-Oyuncu kendi cüzdan adresini QR/ZIP-321 ile verirse rol kartı, rozet ve ödül oraya da gider. Cüzdan zorunlu değil.
-
-### Mainnet
-Aynı protokol, zincir bayrağıyla. zingolib Ironwood rebase + Common. Gönderim mainnet'te mixnet üzerinden, clearnet yedek. Testnet geliştirme, mainnet kanıt (ZecHub builder rehberiyle uyumlu).
-
-### Grant metrikleri (events tablosundan)
-oyun · gerçek oyuncu · şehir · shielded tx · (kanıt modunda) gerçek gönderici.
-
----
-
-## 6. Onboarding ve hesap
-
-- **Oyuncu kripto kelimesi görmez.** Giriş isim + avatar. Cüzdan, ZEC, memo hiçbir formda yok; Zcash perdede ve ifşa partisinde hissedilir.
-- **Para girişi yok.** Potsuz + sponsorlu havuz → oyuncudan tahsilat sıfır. USDT/TRY yalnız sponsor ödemesinde ve kazananın nakde çevirme linkinde yaşar.
-- **İlk açılış:** beş kartlık köy kuralları (kim kimdir, gece, dava, Muhtar, kazanma); atlanabilir, lobide tekrar açılır. Rol kartında "senin gecen böyle geçer" satırı.
-- **Salon girişi:** perdedeki QR → `zkoy.fun/j/KOD`; uygulama yüklüyse açar, değilse web'de oynatır. Masa mağazadan indirme beklemez.
-- **Uzaktan giriş:** arkadaş odası kod/link. Açık oda listesi (kurucu "herkese açık" işaretler). Eşleştirme algoritması yok.
-- **Hesap:** varsayılan misafir (cihaz anahtarı). Rozet/istatistik taşımak isteyen Apple veya Google bağlar; Apple kuralı gereği ikisi birlikte gelir. E-posta istenmez.
-- **Ödül alma:** kazanan "ödülü kendi cüzdanına al" der (Zashi QR) ya da oyun cüzdanında bırakır.
-- **Bildirim:** mağaza sürümünde push ("gece bitti", "dava açıldı: sen", "oylama başladı"); web'de ses + titreşim.
+- **Misafir:** cihaz anahtarı, ad, avatar. Normal odaya girer, oynar. Puan ve rozet cihazda birikir, hesap açınca taşınır.
+- **Hesap:** Apple ve Google girişi (Apple kuralı gereği ikisi birlikte). E-posta istenmez, telefon istenmez.
+- **Profil:** ad, avatar, rozetler, puan, sezon sırası, oyun sayısı, kazanma oranı, unvan.
+- **Oyuncu kripto kelimesi görmez.** Cüzdan, ZEC, memo hiçbir formda yok. Zcash perdede ("mühür sayacı") ve ifşa partisinde hissedilir.
+- **Bildirim:** mağaza sürümünde push ("gece bitti", "dava açıldı: sen", "oylama başladı"); web'de ses ve titreşim.
 - **Dil:** Türkçe önce; İngilizce çeviri dosyası baştan yapıda.
-- **Yaş:** 12+; kan/şiddet görseli yok, karikatür köy.
 
 ---
 
-## 7. Mağaza yolu — TASLAK (Bekir ile konuşulacak)
+## 5. Odalar
 
-- **En düşük riskli çizgi:** parti oyunu; cüzdan barındırmaz, para almaz, "kazan" vaat etmez. Zcash listede tek cümle. Etkinlik ödülleri sponsorlu yarışma kuralıyla, resmi kural metni etkinlik kaydında. "NFT" kelimesi geçmez.
-- **Maddeler:** Apple 3.1.5 kripto (temiz) · Apple 5.3 / Google gerçek paralı oyun (oyuncu para koymuyor; sponsorlu yarışma kuralına uyulur) · Apple 4.2 (Flutter native) · **Apple 1.2 / Google UGC: şikayet et, engelle, sustur, kurucunun oyuncu atması ZORUNLU — ekran/akış kararı Bekir + Selinay** · Apple 4.8 (Google varsa Apple girişi) · gizlilik politikası, mikrofon/kamera izin metinleri.
-- **Hesaplar:** Apple Developer hesabı **Selinay'da var** (iOS/TestFlight bu hesaptan). Google Play hesabı henüz yok, üçüncü sırada olduğu için sonra alınır; yeni bireysel hesaplara üretim öncesi kapalı test şartı (12 test kullanıcısı) var — hesap açılınca doğrulanacak, tur oyuncuları test kullanıcısı olur.
-- **Derleme:** iOS Selinay'ın Mac'inde yerel Xcode → TestFlight; bulut Mac gerekmez. Android Windows'tan; ayrıca doğrudan APK.
-- **Sıra (Bekir, 2 Eyl):** web/PWA önce ve canlı kalır (tur buna dayanır) → **Apple App Store** → Google Play. Mağaza uzaktan modun kapısıdır.
-- **Liste:** ZKöy · Vampir Köylü · Oyun/Strateji · 12+ · gerçek ekran görüntüleri · TR + EN.
+### 5.1 Üç giriş yolu (okey odası modeli, Selinay + Bekir 5 Eyl)
 
----
+1. **Oda kur:** mod, kurallar (§2.1), görünürlük (özel / herkese açık), en fazla oyuncu. Kurucu = ev sahibi.
+2. **Kodla gir:** 6 karakterlik kod ya da davet linki (`zkoy.fun/j/KOD`). Salon QR'ı aynı linki taşır.
+3. **Rastgele gir:** açık oda listesinden boş koltuğu olan bir odaya. Liste zaten var; rastgele = listeden seçen tek düğme, ek maliyet yok.
 
-## 8. Marka ve pazarlama çerçevesi — TASLAK (metinler Bekir'in sesinden)
+Açık oda listesi: mod, kural özeti, kaç kişi / kaç koltuk, bekleme süresi. Eşleştirme algoritması yok.
 
-- **Sabitler:** ZKöy · Mühür · köy teması (Şirince'de doğdu, artık her şehir bir köy) · karikatür köy, gece/gündüz, fener ve meydan · avatar sistemi ve şehir rozetleri marka varlığı.
-- **Hikâye iskeleti:** kahraman masa, rehber ZKöy. Çatışma: "herkes Vampir Köylü'yü sever AMA … BU YÜZDEN …" (Bekir doldurur). Final cümle önce.
-- **Üç kitle:** masa/oyuncular (TR) · Zcash ekosistemi ve grant jürisi (EN, minimal) · ZcashTR turu / Batuhan (TR). Her biri için tek cümle Bekir'den.
-- **Kanıt varlıkları:** salon fotoğrafları, gerçek ekran kaydı demo, ifşa partisi replay'i, explorer linkleri, şehir tablosu. Sahte yok.
-- **Kanallar/ritim:** forum lansman thread'i (mainnet sonrası), iki haftada bir güncelleme, ZcashTR aylık raporu (ayın 19'u), ZecHub Community Projects PR, ZecMarket ilk oyun ilanı, ZcashTR Discord, X proje hesabı (açılacak).
-- **Ölçüm:** oyun · gerçek oyuncu · şehir · shielded tx · gerçek gönderici.
+### 5.2 Oda türleri
 
----
+| Tür | Kim kurar | Para | Zincir |
+|---|---|---|---|
+| **Normal** | Herkes | Yok | Kademeli noter (§9.2): oyun sonu özet mühür |
+| **Etkinlik** | Etkinlik koduna sahip organizatör (tur, kurumsal gece) | Sponsorlu ödül havuzu, oyuncudan sıfır | Tam mühür, mainnet |
 
-## 9. Kapsam dışı (bilinçli)
+Etkinlik odası: etkinlik kodu, şehir, ev sahibi; rozetler şehir adıyla basılır; şehirler arası tablo bundan türer. Ödül dağıtımı §9.4.
 
-Oyuncu parasıyla pot / bahis · zincir üstü USDT/stablecoin · karışık masa (salon + uzaktan) · eşleştirme algoritması · zorunlu self-custody · kendi Zakura düğümü (grant sonrası) · memo tabanlı chat (Zchat dersi) · Ö7 kanıtlı gözcü (stretch, v1'den devir) · hayalet kehanetine para ödülü (rozet var).
+VIP oda (oyuncu potu) bu sürümde yok; §13.
 
 ---
 
-## 10. İnşa sırası ve kapı kuralları (süre yok; risk seviyesi var)
+## 6. Moderasyon (Selinay: "kuranda olsun")
 
-1. **Motor v2** — SEÇİM fazı, Muhtar ağırlığı/halef, gündüz iç durumları (dava/karar), açık oy sayımı, kanıtlı kura, testler. Zincirsiz çalışır (demo sigortası). *Risk: düşük.*
-2. **Sunucu omurgası** — WebSocket, SQLite snapshot + olay günlüğü + kalıcı mühür kuyruğu, komutlar (Muhtar/kurucu), üst sınırlar (yalnız uzaktan). *Orta.*
-3. **Flutter (Selinay)** — meydan bileşeni, SEÇİM ekranı, dava/savunma/karar ekranları, halef seçimi, kural kartları, WS istemcisi. `docs/API.md` v2 sözleşmesi bu adımdan önce güncellenir. *Orta.*
-4. **Salon paketi** — perde = Flutter web seyirci görünümü, QR/derin link, etkinlik kodu, şehir rozeti. **Kapı:** tur öncesi salon modu mainnet'te en az bir prova eli.
-5. **Zincir** — zingolib Ironwood rebase + Common, ekonomik mod, kanıtlı kura memo'ları, rozet/ödül memo'ları, Zashi köprüsü. *Yüksek.*
-6. **VPS** — Hetzner CX32, Docker (bun + livekit), topluluk lightwalletd, zkoy.fun DNS, tünel emekli. *Düşük.*
-7. **Uzaktan paketi** — LiveKit + izin makinesi, chat kanalları, moderasyon (şikayet/engelle/sustur/at), açık oda listesi. **Kapı:** mağaza öncesi en az iki uzak prova eli. *Orta.*
-8. **Mağaza** — iOS (Selinay'ın hesabı) → Android, gizlilik sayfası, listeler. *Orta.*
-9. **Kanıt modu** — oyuncu cüzdanından gönderim, paralel proving işçileri; fonlanınca. *Yüksek.*
+- **Kurucu:** sustur, oyundan at, odayı kapat. Atılan aynı odaya dönemez.
+- **Herkes:** şikayet et (mesaj ya da oyuncu), engelle (engellediğin kişiyle aynı rastgele odaya düşmezsin).
+- **Sunucu:** şikayet edilen mesaj `reports` tablosuna dondurulur, geri kalan chat oyun bitince silinir. Tekrarlayan şikayet hesabı işaretler; mağaza UGC kuralı gereği inceleme kuyruğu ve 24 saat içinde aksiyon.
+- Yabancılarla dolu açık odada kurucunun kötüye kullanımı bilinen risktir; ilk sürümde kabul, şikayet verisiyle izlenir.
 
 ---
 
-## 11. Açık kararlar (Bekir'de)
+## 7. Mimari
 
-- ZecHub hackathon ve film yarışması linkleri → uygunluk ve son tarih.
-- Fortune'a PR #191 altına görev isteme yorumu: gönderilsin mi (taslak hazır).
-- X proje hesabı adı.
-- Evde Zakura düğümü için donanım var mı.
-- Bölüm 7 ve 8 konuşması.
+İlke: **tempo sunucudan, kanıt zincirden, para bizim elimizden geçmez.**
+
+```
+[Flutter: iOS / Android / Web]  ──WebSocket──▶  [Bun sunucu, tek süreç]
+                                                 ├─ Motor (saf durum makinesi, src/engine, v2 API)
+                                                 ├─ Oda katmanı (tetikler, kurallar, yetki, yayın)
+                                                 ├─ Hesap ve profil (Apple/Google/misafir, puan, sezon)
+                                                 ├─ Oda listesi ve moderasyon
+                                                 ├─ SQLite (kalıcılık)
+                                                 └─ Zincir servisi ──▶ zingo-cli (Zakura Common) ──▶ lightwalletd
+                                                       ├─ mock / testnet / mainnet bayrağı
+                                                       ├─ ops cüzdanı: faucet otomasyonu, toz süpürme, eşik alarmı
+                                                       └─ paket link cüzdanları (ödül)
+```
+
+- **Motor** (`src/engine`, v2'de bitti, 30 test): süre bilmez, "hamle geldi / komut geldi" bilir. Oda kuralları (§2.1) motor bayrakları: `gozcu`, `accusedVotes`; perde bayrağı istemci işi.
+- **Oda katmanı** (`src/server`, yeniden yazılacak): üç tetik (aktörler tamamlandı, Muhtar/kurucu komutu, uzaktan mod üst sınırı); her olayda tam state yayını; kanal etiketli chat; yetki denetimi sunucuda (kurucu, Muhtar, sanık).
+- **WebSocket:** oda başına kanal; token el sıkışmada; yeniden bağlanan son state'i alır; mesaj boyutu sınırlı.
+- **Ölçek:** oda durumu bellekte, her olayda SQLite anlık görüntü; tek süreç birkaç bin bağlantı taşır. Ses olmadığı için ilk sürümde ek altyapı yok.
+- **Perde:** Flutter web'in seyirci görünümü, aynı meydan bileşeni; sunucu HTML üretmez.
+- **Dağıtım:** Hetzner CX32 (4 vCPU / 8 GB), Docker (bun + zingo-cli), zkoy.fun doğrudan VPS'e, tünel emekli. Topluluk lightwalletd (`testnet.zec.rocks`, mainnet `zec.rocks`); kendi Zakura düğümü (arşiv 252 GB) grant sonrası.
+- **Prova sunucusu** (`tools/prova`, 5 Eyl) silindi; tetik mantığı ve bot davranışı bu belgeye ve omurga planına taşındı.
+
+---
+
+## 8. Veri şeması (SQLite)
+
+- **users**: id, görünen ad, avatar, giriş türü (misafir / Apple / Google), sağlayıcı kimliği, cihaz anahtarı, oluşturma, işaret (moderasyon).
+- **profiles**: kullanıcı, toplam puan, oyun sayısı, kazanma sayısı, unvan, son görülme.
+- **season_scores**: sezon (YYYY-MM), kullanıcı, puan, oyun sayısı.
+- **rooms**: kod (6), mod, görünürlük, kurucu, kurallar JSON (`gozcu`, `accusedVotes`, `perde`), en fazla oyuncu, etkinlik kodu (null olabilir), durum, oda cüzdan adresi + görüntüleme anahtarı (etkinlik odasında), state snapshot JSON, son güncelleme.
+- **room_players**: oda, kullanıcı, oyuncu kimliği, koltuk, avatar, token hash, cüzdan adresi (etkinlik odasında), katılma, ayrılma.
+- **games**: id, oda, başlangıç, bitiş, kazanan, oyuncu sayısı, kompozisyon JSON, kura taahhüdü, kura açılımı, özet hash (`gameroot`), özet txid.
+- **events**: id, oyun, tur, faz, tür, yapan, hedef, payload JSON, zaman, mühür txid, mühür durumu. Her memo'nun ikizi; ifşa partisi ve özet hash buradan.
+- **seal_queue**: id, olay(lar), gönderen cüzdan, alıcı adres, memo JSON, deneme, durum, txid. Kalıcı kuyruk.
+- **chat_messages**: oda, kanal, oyuncu, metin, tur, faz, zaman. Oyun bitince silinir.
+- **reports**: oda, şikayet eden, şikayet edilen, mesaj kopyası, sebep, durum, aksiyon.
+- **blocks**: engelleyen, engellenen.
+- **badges**: kullanıcı, oyun, tür, etiket, etkinlik kodu, memo txid, zaman.
+- **tour_events**: kod, şehir, tarih, ev sahibi, sponsor havuzu (zat), dağıtım kuralı.
+- **ops**: bakiye günlüğü, faucet talepleri, süpürme işlemleri.
+
+**WebSocket mesajları.** Sunucudan: `state`, `me`, `chat`, `announce`, `rooms` (liste), `error`. İstemciden: `join`, `action` (motor hamlesi), `command` (kurucu/Muhtar), `chat`, `report`, `block`, `rooms` (listele).
+
+**Gizlilik:** kişisel veri ad, avatar, sağlayıcı kimliği. Cüzdan anahtarları VPS diskinde, veritabanında değil, repo dışında.
+
+---
+
+## 9. Zcash katmanı
+
+### 9.1 Zincir yolu
+
+zingo-cli, fork `Bekirerdem/zingolib` dal `zakura-common`: upstream dev HEAD (Ironwood) + `network clearnet` yaması + Zakura Common crate'leri. Gönderim 1,0 s (dev HEAD 3,5 s). Reçete `docs/zingo-patch.md`. Sunucu binary'yi `ZINGO_BIN` ile alır, senkron işaretini `RUST_LOG=info` ile okur.
+
+### 9.2 Kademeli noter
+
+| Oda | Ne mühürlenir | Ne zaman | Ağ | Oyun başına |
+|---|---|---|---|---|
+| Normal | Oyun sonunda tek memo: `gameroot` (olay günlüğünün özet hash'i) + kura açılımı; rol kartı ve rozet yine oyuncuya memo | Oyun sonu | Testnet (ilk sürüm); mainnet grant sonrası | ≈ 0 |
+| Etkinlik | Tam mühür, ekonomik mod: ops gönderir, faz başına toplu çok-memo tx | Faz başına | Mainnet | ≈ 0,5-1 $ (ZEC ≈ 800-1000 $) |
+| Kanıt modu | Oyuncu cüzdanından hamle başına | Hamle başına | Mainnet | ≈ 12-18 $; yalnız fonlanan turnuva |
+
+Normal odada olay günlüğü sunucuda durur; ifşa partisi günlüğü zincirdeki `gameroot` ile doğrular. Etkinlik odasında her satırın explorer linki vardır.
+
+### 9.3 Memo protokolü v3
+
+v2 tablosu (§5 v2) aynen; ekler:
+
+```
+ops→oda      gameroot {h, n, w}    normal oda oyun sonu özeti: olay hash'i, olay sayısı, kazanan
+ops→oyuncu   prize    {zat, reason, event, pkt}   ödül; pkt = paket link cüzdanı kimliği (9.4)
+```
+
+Tüm memo'larda `v:3`, `g` (oda kodu). JSON ≤ 512 B. Motor bugün `v:2` üretiyor; `v:3` ve `gameroot` omurga adımında (§14-3) motora girer. `verdict` memo'ları sanık hariç oy kullananlardan gelir (§2.1).
+
+### 9.4 Ödül ve cüzdan bağlama (Zpacket modeli)
+
+- Oyuncu cüzdan kurmak zorunda değil. Ödül **paket link** olarak gider: her ödül için tek kullanımlık cüzdan, ZEC oraya, link oyuncuya; linki tutan alır (Zapp'ın Zpackets deseni, 3 Eyl 2026). Bizim v1 "oyuncu cüzdanı" modeli zaten buydu; artık ürün yüzü.
+- İsteyen Zashi adresini QR / ZIP-321 ile bağlar: rol kartı, rozet ve ödül doğrudan oraya.
+- Biz para tutmuyoruz: sponsor havuzu etkinlik cüzdanında, dağıtım oyun sonunda `prize` memo'lu gerçek ödeme, ödemeyen yok.
+- Sponsor nasıl isterse öyle öder (TRY/USDT/ZEC), biz ZEC'e çeviririz; kazanan borsa linkiyle nakde çevirir. Havuz ve dağıtım tablosu etkinlik kaydında yazılıdır (mağaza yarışma kuralı, Apple 5.3.1).
+
+### 9.5 Ops cüzdanı, sessiz depo (Bekir: "TAZ ile sürekli uğraşmayalım")
+
+- **Faucet otomasyonu:** bakiye eşiğin altına inince sunucu `zcash-camp/tools/faucet.ts` mantığıyla (jinolabs, PoW, adres başı 0,1 TAZ / 24 s) kendisi talep eder; birden fazla ops adresi dönüşümlü.
+- **Toz süpürme:** oyun bitince oda ve oyuncu cüzdanlarındaki toz ops'a geri; net maliyet yalnız işlem ücreti. Reçete: notlar `spend_status=unspent`, ücret 5000 × max(2, not sayısı).
+- **Not bölme:** ops fonu 6+ nota bölünür (tek not ardışık gönderimi öldürür).
+- **Eşik alarmı:** bakiye < 0,05 TAZ → log + Telegram bildirimi.
+- Testler ve prova mock zincirde döner, TAZ harcamaz.
+
+### 9.6 NU7 notu
+
+25 saniyelik blok gelirse `DEFAULT_TX_EXPIRY_DELTA` (40 blok) 120'ye çekilir; aksi hâlde expired-tx rehin vakası üç kat sıklaşır. NU7 tx formatını değiştirmiyor, memo protokolü etkilenmez.
+
+---
+
+## 10. Güvenlik (7 Eyl repo denetimi)
+
+- **Yetki sunucuda:** `start` yalnız kurucu, `openVerdict` yalnız sanık/Muhtar, `closeDay`/`nextRound` yalnız Muhtar/kurucu, `nameHeir` yalnız ölen Muhtar, `reveal` yalnız END. (v1'de reveal faz kontrolsüzdü; kapatıldı.)
+- **Kimlik:** token WebSocket el sıkışmasında, sorgu parametresinde değil; token hash'i veritabanında; misafir cihaz anahtarı.
+- **Oda kodu** 6 karakter (25 harfli alfabe ≈ 244 milyon); bilinmeyen koda deneme hız sınırı.
+- **Hız sınırı:** oda kurma (gerçek cüzdan yaratır) IP ve hesap başına; katılma; chat; şikayet.
+- **CORS:** same-origin; web sürümü aynı origin'den servis edilir.
+- **Kura tohumu** CSPRNG; taahhüt `sha256(seed|salt)`, tuz sunucuda, açılım END'de.
+- **Anahtarlar:** cüzdan dizinleri repo dışı, VPS'te yalnız servis kullanıcısı okur; loglarda memo içeriği ve anahtar yok.
+- **Girdi:** ad ≤ 16, chat ≤ 280, vasiyet ≤ 200, memo ≤ 512 B; WS mesaj boyutu sınırı; HTML kaçışı perdede.
+- **Bağımlılık:** `bun-types` ile `tsc` her push öncesi; `bun test`.
+- **Mağaza:** UGC kuralı (şikayet/engelle/sustur/at), gizlilik metni, kamera ve internet izinleri (7 Eyl eklendi).
+
+---
+
+## 11. Mağaza ve web
+
+- **Sıra:** Flutter uygulaması iOS (Selinay'ın Apple Developer hesabı, Mac'te yerel Xcode → TestFlight) ve Android (Windows'tan; Play hesabı sonra, kapalı test şartı 12 kullanıcı = tur oyuncuları). Web/PWA aynı build, etkinlik girişi ve masa için canlı kalır.
+- **Liste:** ZKöy · Vampir Köylü · Oyun/Strateji · 12+ · gerçek ekran görüntüleri · TR + EN. "NFT" kelimesi geçmez; Zcash listede tek cümle.
+- **Kurallar:** Apple 5.3.1 sponsorlu yarışma (etkinlik odası resmi kural metni), Apple 3.1.5 kripto (oyuncuya görev karşılığı kripto yok), Apple 1.2 / Google UGC (moderasyon §6), Apple 4.2 (Flutter native), Apple 4.8 (Google varsa Apple girişi).
+- **Para:** mağaza sürümünde para yok; oyuncu potu hiçbir sürümde mağazaya girmez (lisans şartı, §13).
+
+---
+
+## 12. Tasarım dili ve ekranlar
+
+- **Dil:** köy, gece, fener, mühür. Sıcak koyu zemin, tek accent fener altını, balmumu mühür kırmızısı. Karikatür köy ama çocuk oyunu değil; yapay görünüm yasak (Bekir: "çok yapay, güzel değil").
+- **Yöntem:** önce tasarım sistemi (renk, tipografi, bileşenler), sonra Claude Design'da ekran ekran mobil akış, Selinay Flutter'ı ekranlardan yazar. Tasarım kararları Bekir + Selinay birlikte; solo UI kararı yok.
+- **Ekran envanteri:** giriş (misafir / Apple / Google) · lobi (oda kur, kodla gir, rastgele gir, açık oda listesi) · oda kurma (mod, kurallar, görünürlük) · oda bekleme (koltuklar, QR, kural kartları) · rol kartı · seçim · gece hamlesi · şafak · meydan/gündüz · dava ve savunma · karar oyu · infaz · hayalet defteri ve kehanet · son ve ifşa partisi · profil ve rozetler · sezon tablosu · ayarlar ve moderasyon · perde (web seyirci görünümü).
+- **Meydan** tek bileşen: perdede büyük, telefonda sekme; avatar çemberi, dava sanığı ortada, karar oyunda avatarlar iki tarafa döner, sayım ortada.
+
+---
+
+## 13. Kapsam dışı (bilinçli)
+
+- **Oyuncu potu / VIP oda.** Ertelendi. Gelirse yalnız web'de ve para bizim üzerimizden geçmeden: defter modeli (taahhüt memo + doğrudan ödeme + itibar) ilk aday, eşik cüzdan (FROST 2-of-3, ZecMarket deseni) ikinci. Türkiye'de hukuki görüş şart. Mağaza sürümüne hiçbir zaman girmez.
+- **Ses** (LiveKit): uzaktan mod ikinci sürümü.
+- Karışık masa (salon + uzaktan) · eşleştirme algoritması · kendi Zakura düğümü (grant sonrası) · memo tabanlı chat · zincir üstü stablecoin · zorunlu self-custody · hayalet kehanetine para ödülü.
+
+---
+
+## 14. İnşa sırası ve kapı kuralları (süre yok; risk seviyesi var)
+
+1. **Spec v3** — bu belge. *Bitti.*
+2. **Tasarım sistemi ve ekranlar** (Bekir + Selinay) — §12 envanteri, Claude Design; kapı: envanterdeki ekranların hepsi onaylı. *Orta.*
+3. **Sunucu omurgası** (Bekir) — WebSocket, SQLite (§8), oda katmanı ve yetki (§7, §10), hesap ve profil (§4), oda listesi (§5), moderasyon (§6), zincir servisi (§9: mock/testnet bayrağı, kademeli noter, ops otomasyonu), `docs/API.md` v3. Kapı: botsuz, gerçek sunucuda, testnet'te bir el. *Orta-yüksek.*
+4. **Flutter v3** (Selinay) — ekranlar §12, WS istemcisi, misafir + hesap, salon ve uzaktan (yazılı chat). Kapı: iki cihaz + perde ile tam el. *Orta.*
+5. **Çevrede ilk eller** — 7+ kişi, testnet, rozet ve puan canlı. Kapı: 10 gerçek el. *Düşük.*
+6. **Etkinlik katmanı ve mainnet** — etkinlik odası, sponsor havuzu, paket link ödül, tam mühür mainnet; Bursa pilotu (Ekim). Kapı: mainnet'te bir prova eli. *Yüksek.*
+7. **Mağaza** — iOS TestFlight → App Store; Android kapalı test → Play. *Orta.*
+8. **Uzaktan mod v2** — ses (LiveKit), açık oda büyümesi. *Orta.*
+9. **VPS** — Hetzner CX32, Docker, zkoy.fun; 3. adımla birlikte. *Düşük.*
+
+---
+
+## 15. Açık kararlar
+
+| Karar | Kimde |
+|---|---|
+| Unvan isimleri ve marka metinleri (Bekir'in sesinden) | Bekir |
+| Sezon süresi (ay varsayıldı) | Bekir + Selinay |
+| Puan değerleri (§2.3 sayıları ilk eller sonrası ayarlanır) | Bekir + Selinay |
+| Ses için zamanlama (uzaktan mod ikinci sürüm) | Bekir |
+| VIP mekanizması ve hukuk (§13) | Bekir; şimdilik kapalı |
+| Grant başvurusu bütçesi (Q4 retro 30 Eki–13 Kas; emsal 15-25 bin $) | Bekir |

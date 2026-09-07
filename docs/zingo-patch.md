@@ -1,8 +1,15 @@
-# zingo-cli yaması: `network clearnet`
+# zingo-cli forku: `network clearnet` yaması + Zakura Common
 
-ZKöy sunucusu, testnet gönderimleri için **yamalı** bir zingo-cli build'i kullanır.
-Yama yerel checkout'ta durur: `Desktop\Web3-projeleri\zcash-camp\zingolib`
-(`zingo-cli/src/commands.rs`), upstream'e gönderilmedi.
+ZKöy sunucusu, testnet gönderimleri için **forklu** bir zingo-cli build'i kullanır.
+Fork GitHub'da: `github.com/Bekirerdem/zingolib` (upstream `zingolabs/zingolib`).
+Yerel checkout: `Desktop\Web3-projeleri\zcash-camp\zingolib` (remote `bekir`).
+
+| Dal | İçerik |
+|---|---|
+| `zkoy-dev` | upstream `dev` (7 Eyl 2026, `884d8928`, Ironwood/NU6.3 + 0.30 yığını) + `network clearnet` yaması |
+| `zakura-common` | `zkoy-dev` + kripto yığını Zakura Common crate'lerine kablolanmış (**sunucunun kullandığı dal**) |
+
+Yama upstream'e gönderilmedi.
 
 ## Neden gerekli
 
@@ -43,13 +50,58 @@ Oturum-bazlıdır; sonraki açılış mixnet duruşuna döner.
 +        }
 ```
 
+## Zakura Common kablolaması (dal `zakura-common`, 7 Eyl 2026)
+
+Zakura Common = librustzcash'in hızlandırılmış forkları, crates.io'da `zakura-*`
+adlarıyla (lib hedef adları aynı, `use` yolları değişmez). Cüzdan katmanı için
+`zakura-core/wallet-libraries` → `zakura-client-backend`. Yöntem `[patch]` değil,
+bağımlılık adı değiştirme; Zakura'nın kendi düğümü de böyle tüketiyor.
+
+Değişen yerler:
+
+- Kök `Cargo.toml` `[workspace.dependencies]`: `orchard`, `sapling-crypto`,
+  `zcash_primitives`, `zcash_proofs`, `zcash_keys`, `jubjub` →
+  `{ version = "=1.0.0", package = "zakura-…" }`; `zcash_client_backend` →
+  `{ version = "0.1.0-rc4", package = "zakura-client-backend" }` (upstream
+  rc.7 hattından çatal, zingolib'in beklediği sürüm).
+- `zcash_proofs`'a `features = ["local-prover"]` (Zakura'nın varsayılanında yok,
+  `default_params_folder` bu özelliğe kilitli).
+- Zakura yığını `rand_core 0.10`; builder sınırındaki iki çağrı
+  (`zingolib/src/wallet/migration/{parts,split}.rs`) `rand::rngs::OsRng` yerine
+  `rand10::rand_core::UnwrapErr(rand10::rngs::SysRng)` kullanır
+  (`rand10 = { package = "rand", version = "0.10", features = ["sys_rng"] }`).
+- `zcash_pool_migration` (Ironwood göç motoru) crates.io'dan değil
+  `zcash-camp/vendor/zcash_pool_migration` (rc.7 kaynağı, bağımlılıkları
+  `zakura-*`'a çevrilmiş) path bağımlılığı olarak gelir; aksi hâlde crates.io
+  `orchard`/`zcash_primitives` kopyası grafiğe girer ve tipler çakışır.
+  Kural: `cargo metadata` çıktısında kripto crate'lerinin yalnız `zakura-*`
+  sürümü görünmeli.
+
+Ölçüm (7 Eyl, testnet, aynı cüzdan, 10k zat self-send, kanıt dahil):
+
+| Binary | `quicksend` süresi | Senkron (aynı cüzdan) |
+|---|---|---|
+| `zkoy-dev` (upstream dev HEAD) | 3,5 s | 3 dk 10 s |
+| `zakura-common` | **1,0 s** | 2 dk |
+
 ## Yeniden derleme
 
 ```powershell
-$env:PROTOC = "C:\Users\l3eki\Desktop\Web3-projeleri\zcash-camp\tools\protoc\bin\protoc.exe"
+$env:PROTOC = "C:\Users\l3eki\Desktop\Web3-projeleri\zcash-camp\tools\protoc\bin\protoc.exe"   # yoksa lightwallet-protocol build-script düşer
 cd C:\Users\l3eki\Desktop\Web3-projeleri\zcash-camp\zingolib
-cargo build --release --bin zingo-cli   # incremental ~2 dk
+git checkout zakura-common
+cargo build --release -p zingo-cli     # incremental ~2-3 dk, temiz ~15 dk
 ```
+
+Sunucu binary'yi `target/release/zingo-cli.exe`'den alır; `ZINGO_BIN` ortam
+değişkeniyle başka bir sürüme (ör. `zingo-cli-devhead.exe`) döndürülür.
+
+## Senkron işareti (dev HEAD)
+
+Yeni sürüm senkron bitişini yalnız `tracing` ile bildirir: sunucu zingo-cli'yi
+`RUST_LOG=info` ile açar ve stderr'de `SYNC_SPAN=close` (ya da
+`Sync successfully shutdown`) görünce gönderir. Bu olmadan oturum
+`ZKOY_SYNC_WAIT_MS` (120 s) boyunca boşuna bekler.
 
 ## Sunucunun kullanım şekli
 

@@ -10,5 +10,8 @@
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.2"
   }
 }

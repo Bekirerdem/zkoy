@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# gen_l10n output: `generate: true` regenerates these on every
+# `flutter pub get`. The .arb files are the source; the Dart is not tracked.
+/lib/l10n/app_localizations*.dart

@@ -256,6 +256,7 @@ class MockApiClient implements ApiClient {
         room.phase = Phase.night;
         room.announcements.add(_Announcement('info', 'Gece ${room.round} çöküyor…'));
         break;
+      case Phase.election:
       case Phase.lobby:
       case Phase.end:
         break;

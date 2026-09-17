@@ -13,12 +13,7 @@ class PhaseBackground extends StatefulWidget {
   final Color? accent;
   final Widget child;
 
-  const PhaseBackground({
-    super.key,
-    required this.mood,
-    required this.child,
-    this.accent,
-  });
+  const PhaseBackground({super.key, required this.mood, required this.child, this.accent});
 
   @override
   State<PhaseBackground> createState() => _PhaseBackgroundState();
@@ -33,8 +28,7 @@ class _Particle {
   const _Particle(this.x, this.y, this.size, this.speed, this.phase);
 }
 
-class _PhaseBackgroundState extends State<PhaseBackground>
-    with SingleTickerProviderStateMixin {
+class _PhaseBackgroundState extends State<PhaseBackground> with SingleTickerProviderStateMixin {
   // 15fps yeter (ateşböceği ağır süzülür) — 60fps tam-ekran repaint mobil
   // web'de scroll'u tıkıyordu (17 Ağu saha bulgusu).
   final ValueNotifier<double> _t = ValueNotifier(0);
@@ -94,13 +88,8 @@ class _PhaseBackgroundState extends State<PhaseBackground>
           child: IgnorePointer(
             child: ValueListenableBuilder<double>(
               valueListenable: _t,
-              builder: (_, t, __) => CustomPaint(
-                painter: _ParticlePainter(
-                  t: t,
-                  mood: widget.mood,
-                  accent: accent,
-                  particles: _particles,
-                ),
+              builder: (_, t, _) => CustomPaint(
+                painter: _ParticlePainter(t: t, mood: widget.mood, accent: accent, particles: _particles),
               ),
             ),
           ),
@@ -117,10 +106,7 @@ class _PhaseBackgroundState extends State<PhaseBackground>
         return LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color.lerp(const Color(0xFF11101B), accent, 0.14)!,
-            const Color(0xFF11101B),
-          ],
+          colors: [Color.lerp(const Color(0xFF11101B), accent, 0.14)!, const Color(0xFF11101B)],
         );
       case PhaseMood.ghost:
         return const LinearGradient(
@@ -138,10 +124,7 @@ class _PhaseBackgroundState extends State<PhaseBackground>
         return LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color.lerp(const Color(0xFFFAF7EF), Colors.redAccent, 0.06)!,
-            const Color(0xFFFAF7EF),
-          ],
+          colors: [Color.lerp(const Color(0xFFFAF7EF), Colors.redAccent, 0.06)!, const Color(0xFFFAF7EF)],
         );
     }
   }
@@ -153,12 +136,7 @@ class _ParticlePainter extends CustomPainter {
   final Color accent;
   final List<_Particle> particles;
 
-  _ParticlePainter({
-    required this.t,
-    required this.mood,
-    required this.accent,
-    required this.particles,
-  });
+  _ParticlePainter({required this.t, required this.mood, required this.accent, required this.particles});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -172,8 +150,7 @@ class _ParticlePainter extends CustomPainter {
           // ateşböceği: yavaş yükselir, yatayda salınır, yanıp söner
           y = (p.y - drift) % 1.0;
           x = p.x + math.sin(t * 2 * math.pi * p.speed + p.phase) * 0.03;
-          opacity =
-              0.25 + 0.55 * (0.5 + 0.5 * math.sin(t * 6 * math.pi + p.phase));
+          opacity = 0.25 + 0.55 * (0.5 + 0.5 * math.sin(t * 6 * math.pi + p.phase));
           break;
         case PhaseMood.vote:
           // kor: hızlı yükselir, yükseldikçe söner

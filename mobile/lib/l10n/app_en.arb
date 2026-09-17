@@ -1,0 +1,71 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "ZKöy",
+
+  "roleVampire": "Vampire",
+  "roleVillager": "Villager",
+  "roleDoctor": "Doctor",
+  "roleWatcher": "Watcher",
+  "roleFool": "Fool",
+
+  "roleVampireDesc": "Each night you and the other vampires pick a victim. Whoever the majority points at is taken.",
+  "roleVillagerDesc": "You sleep at night. By day you speak in the square, accuse, and vote.",
+  "roleDoctorDesc": "Each night you can shield one person from the vampires. You may pick yourself.",
+  "roleWatcherDesc": "Each night you learn whether one person is a vampire.",
+  "roleFoolDesc": "You have no night move. If the village hangs you, you win alone.",
+
+  "phaseLobby": "Lobby",
+  "phaseElection": "Election",
+  "phaseNight": "Night",
+  "phaseDawn": "Dawn",
+  "phaseDay": "Day",
+  "phaseExecution": "Execution",
+  "phaseEnd": "End",
+
+  "dayStageFree": "Square",
+  "dayStageTrial": "Trial",
+  "dayStageVerdict": "Verdict",
+
+  "badgeWinner": "Winner",
+  "badgeFool": "Fool",
+  "badgeOracle": "Oracle",
+  "badgeHeadman": "Headman",
+
+  "winnerVillage": "The village wins",
+  "winnerVampires": "The vampires win",
+  "winnerFool": "The Fool wins",
+
+  "actionNominate": "Run for office",
+  "actionAccuse": "Accuse",
+  "actionSecond": "Second",
+  "actionDefenseDone": "I rest my defense",
+  "actionGuilty": "Hang",
+  "actionNotGuilty": "Spare",
+  "actionOpenVerdict": "Call the vote",
+  "actionCloseDay": "Close the day",
+  "actionNameHeir": "Name your heir",
+
+  "accusedCannotVote": "The accused does not vote in their own trial",
+
+  "headmanBadge": "Headman",
+  "headmanWeightNote": "The Headman's vote counts as {weight}",
+
+  "ruleScreen": "Big screen",
+  "ruleScreenHint": "Turn on if the room has a projector. If off, the square opens on each phone.",
+  "ruleWatcher": "Watcher",
+  "ruleWatcherHint": "With 12 players or fewer the Watcher is too strong; off by default.",
+  "ruleAccusedVotes": "Accused may vote",
+  "ruleAccusedVotesHint": "When off, the accused cannot vote in their own trial.",
+
+  "modeSameRoom": "Same room",
+  "modeRemote": "Remote",
+
+  "chatChannelVillage": "Village",
+  "chatChannelVampire": "Vampires",
+  "chatChannelGhost": "Ghosts",
+
+  "playerCountRange": "{min}-{max} players",
+  "vampireCount": "{count, plural, =1{1 vampire} other{{count} vampires}}",
+  "sealCounter": "{count, plural, =0{No seals yet} other{{count} seals}}"
+}

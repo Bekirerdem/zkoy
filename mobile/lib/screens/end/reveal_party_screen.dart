@@ -10,6 +10,18 @@ import '../../utils/constants.dart';
 import '../../widgets/common/status_overlay.dart';
 import '../../widgets/common/zkoy_button.dart';
 
+/// Abbreviates a viewing key to its first 24 and last 8 characters.
+///
+/// A real UFVK runs to hundreds of characters, but the mock chain hands out
+/// a much shorter one, where a blind `substring(0, 24)` threw a RangeError.
+/// A key too short to be worth abbreviating is returned untouched.
+String _abbreviateKey(String key) {
+  const head = 24;
+  const tail = 8;
+  if (key.length <= head + tail + 1) return key;
+  return '${key.substring(0, head)}…${key.substring(key.length - tail)}';
+}
+
 /// Oyun sonu "ifşa partisi": oda UFVK'sı + tier ifşaları + ÇÖZÜLMÜŞ oyun
 /// dökümü (kim kime oy verdi, vampir kimi seçti) — "cam ebe" kanıtı burada
 /// okunur hale gelir.
@@ -149,8 +161,7 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
-                                  '${end.ufvk.substring(0, 24)}…'
-                                  '${end.ufvk.substring(end.ufvk.length - 8)}',
+                                  _abbreviateKey(end.ufvk),
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodyMedium

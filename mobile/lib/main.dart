@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'l10n/app_localizations.dart';
+
 import 'services/api_config.dart';
 import 'state/game_provider.dart';
 import 'state/session.dart';
@@ -34,6 +36,10 @@ class ZkoyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'ZKöy',
         debugShowCheckedModeBanner: false,
+        // Turkish first, English wired up from the start. An unsupported
+        // device locale falls back to the first entry in supportedLocales.
+        localizationsDelegates: L.localizationsDelegates,
+        supportedLocales: L.supportedLocales,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: ThemeMode.light,

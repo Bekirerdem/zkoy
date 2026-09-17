@@ -3,3 +3,4 @@ node_modules/
 mobile/build/
 *.log
 .gstack/
+.DS_Store

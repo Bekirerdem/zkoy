@@ -1,3 +1,5 @@
+// TODO(v3): Take the phase name from l10n (phaseNight, phaseDay, …) instead
+// of Phase.label.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

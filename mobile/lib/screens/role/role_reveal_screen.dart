@@ -1,3 +1,5 @@
+// TODO(v3): Read the role name and blurb from l10n (roleVampire,
+// roleVampireDesc, …) rather than the hardcoded getters on Role.
 import 'package:flutter/material.dart';
 
 import '../../models/role.dart';

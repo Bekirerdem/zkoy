@@ -1,3 +1,7 @@
+// TODO(v3): Rename the cases to English (vampire, villager, doctor, watcher,
+// fool) while keeping the wire tokens as they are, and move `label` and
+// `description` onto the l10n keys roleVampire / roleVampireDesc and friends.
+// The Watcher also becomes optional — see RoomRules.watcher.
 enum Role { vampir, koylu, doktor, gozcu, deli }
 
 extension RoleX on Role {

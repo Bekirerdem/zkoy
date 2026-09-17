@@ -13,12 +13,7 @@ class TapBurst extends StatefulWidget {
   final bool enabled;
   final Color? color;
 
-  const TapBurst({
-    super.key,
-    required this.child,
-    this.enabled = true,
-    this.color,
-  });
+  const TapBurst({super.key, required this.child, this.enabled = true, this.color});
 
   @override
   State<TapBurst> createState() => _TapBurstState();
@@ -36,21 +31,28 @@ class _TapBurstState extends State<TapBurst> with TickerProviderStateMixin {
   bool _pressed = false;
 
   void _spawn(Offset local) {
-    final ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 450),
-    );
+    final ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
     final burst = _Burst(local, ctrl, math.Random().nextDouble() * math.pi);
     setState(() => _bursts.add(burst));
     ctrl.forward().whenCompleteOrCancel(() {
-      if (mounted) setState(() => _bursts.remove(burst));
+      // Two paths reach this callback: the animation finished, or the
+      // ticker was cancelled. The second also happens when State.dispose
+      // disposes the controller, and by then the burst is already off the
+      // list — touching the controller again throws "disposed more than
+      // once". Removing it successfully is the proof that we still own it.
+      if (!_bursts.remove(burst)) return;
+      if (mounted) setState(() {});
       ctrl.dispose();
     });
   }
 
   @override
   void dispose() {
-    for (final b in _bursts) {
+    // Drain the list before disposing: disposing cancels the ticker and
+    // fires the callback above, which then bails out on the empty list.
+    final pending = List<_Burst>.of(_bursts);
+    _bursts.clear();
+    for (final b in pending) {
       b.ctrl.dispose();
     }
     super.dispose();
@@ -83,7 +85,7 @@ class _TapBurstState extends State<TapBurst> with TickerProviderStateMixin {
               child: IgnorePointer(
                 child: AnimatedBuilder(
                   animation: b.ctrl,
-                  builder: (_, __) => CustomPaint(
+                  builder: (_, _) => CustomPaint(
                     painter: _BurstPainter(
                       center: b.center,
                       t: Curves.easeOutCubic.transform(b.ctrl.value),
@@ -107,12 +109,7 @@ class _BurstPainter extends CustomPainter {
   final Color color;
   final double seed;
 
-  _BurstPainter({
-    required this.center,
-    required this.t,
-    required this.color,
-    required this.seed,
-  });
+  _BurstPainter({required this.center, required this.t, required this.color, required this.seed});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -128,11 +125,7 @@ class _BurstPainter extends CustomPainter {
     for (var i = 0; i < 6; i++) {
       final angle = seed + i * math.pi / 3;
       final dist = 10 + 34 * t;
-      canvas.drawCircle(
-        center + Offset(math.cos(angle) * dist, math.sin(angle) * dist),
-        2.2 * fade,
-        spark,
-      );
+      canvas.drawCircle(center + Offset(math.cos(angle) * dist, math.sin(angle) * dist), 2.2 * fade, spark);
     }
   }
 

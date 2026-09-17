@@ -1,0 +1,138 @@
+{
+  "@@locale": "tr",
+
+  "appTitle": "ZKöy",
+  "@appTitle": { "description": "Product name. Never translated." },
+
+  "roleVampire": "Vampir",
+  "@roleVampire": { "description": "Role name. Engine: Role.vampir" },
+  "roleVillager": "Köylü",
+  "@roleVillager": { "description": "Role name. Engine: Role.koylu" },
+  "roleDoctor": "Doktor",
+  "@roleDoctor": { "description": "Role name. Engine: Role.doktor" },
+  "roleWatcher": "Gözcü",
+  "@roleWatcher": { "description": "Role name. Engine: Role.gozcu. May be absent depending on the room rules." },
+  "roleFool": "Deli",
+  "@roleFool": { "description": "Role name. Engine: Role.deli" },
+
+  "roleVampireDesc": "Geceleri diğer vampirlerle birlikte bir kurban seçersiniz. Çoğunluk kimi işaret ederse o alınır.",
+  "@roleVampireDesc": { "description": "Role card blurb. In v2 the night kill is decided by vampire majority." },
+  "roleVillagerDesc": "Gece uyursun. Gündüz meydanda konuşur, suçlar ve oy verirsin.",
+  "@roleVillagerDesc": { "description": "Role card blurb." },
+  "roleDoctorDesc": "Her gece bir kişiyi vampirden koruyabilirsin. Kendini de seçebilirsin.",
+  "@roleDoctorDesc": { "description": "Role card blurb. No restriction in v2." },
+  "roleWatcherDesc": "Her gece bir kişinin vampir olup olmadığını sorgularsın.",
+  "@roleWatcherDesc": { "description": "Role card blurb." },
+  "roleFoolDesc": "Gece hamlen yok. Köy seni asarsa tek başına kazanırsın.",
+  "@roleFoolDesc": { "description": "Role card blurb." },
+
+  "phaseLobby": "Lobi",
+  "@phaseLobby": { "description": "Phase name. Engine: Phase.LOBBY" },
+  "phaseElection": "Seçim",
+  "@phaseElection": { "description": "Phase name. Engine: Phase.ELECTION. The headman election runs in every game." },
+  "phaseNight": "Gece",
+  "@phaseNight": { "description": "Phase name. Engine: Phase.NIGHT" },
+  "phaseDawn": "Şafak",
+  "@phaseDawn": { "description": "Phase name. Engine: Phase.DAWN" },
+  "phaseDay": "Gündüz",
+  "@phaseDay": { "description": "Phase name. Engine: Phase.DAY" },
+  "phaseExecution": "İnfaz",
+  "@phaseExecution": { "description": "Phase name. Engine: Phase.EXECUTION" },
+  "phaseEnd": "Son",
+  "@phaseEnd": { "description": "Phase name. Engine: Phase.END" },
+
+  "dayStageFree": "Meydan",
+  "@dayStageFree": { "description": "Day sub-stage. Engine: DayStage.free. Open talk and accusations." },
+  "dayStageTrial": "Dava",
+  "@dayStageTrial": { "description": "Day sub-stage. Engine: DayStage.trial. The accused is making their defense." },
+  "dayStageVerdict": "Karar",
+  "@dayStageVerdict": { "description": "Day sub-stage. Engine: DayStage.verdict. The hang-or-spare vote." },
+
+  "badgeWinner": "Kazanan",
+  "@badgeWinner": { "description": "Badge. Engine: BadgeKind.kazanan. Permanent, stored on chain." },
+  "badgeFool": "Deli",
+  "@badgeFool": { "description": "Badge. Engine: BadgeKind.deli. Awarded to a Fool who gets hanged." },
+  "badgeOracle": "Kâhin",
+  "@badgeOracle": { "description": "Badge. Engine: BadgeKind.kahin. Awarded for a correct ghost prophecy." },
+  "badgeHeadman": "Muhtar",
+  "@badgeHeadman": { "description": "Badge. Engine: BadgeKind.muhtar. Awarded to the elected headman." },
+
+  "winnerVillage": "Köy kazandı",
+  "@winnerVillage": { "description": "Game result. Engine: Winner.koy" },
+  "winnerVampires": "Vampirler kazandı",
+  "@winnerVampires": { "description": "Game result. Engine: Winner.vampir" },
+  "winnerFool": "Deli kazandı",
+  "@winnerFool": { "description": "Game result. The Fool was hanged and wins alone." },
+
+  "actionNominate": "Aday ol",
+  "@actionNominate": { "description": "Election phase. Stand as a candidate for headman." },
+  "actionAccuse": "Suçla",
+  "@actionAccuse": { "description": "Free day stage. Call someone to trial." },
+  "actionSecond": "Destekle",
+  "@actionSecond": { "description": "Back a pending accusation. A trial only opens once seconded." },
+  "actionDefenseDone": "Savunmam bitti",
+  "@actionDefenseDone": { "description": "The accused closes their own defense." },
+  "actionGuilty": "Assın",
+  "@actionGuilty": { "description": "Verdict vote: guilty." },
+  "actionNotGuilty": "Asmasın",
+  "@actionNotGuilty": { "description": "Verdict vote: not guilty." },
+  "actionOpenVerdict": "Oylamaya geç",
+  "@actionOpenVerdict": { "description": "Headman power. Moves the trial to the verdict vote." },
+  "actionCloseDay": "Günü kapat",
+  "@actionCloseDay": { "description": "Headman power. Ends the day without hanging anyone." },
+  "actionNameHeir": "Halefini seç",
+  "@actionNameHeir": { "description": "A dying headman hands the office on." },
+
+  "accusedCannotVote": "Sanık kendi davasında oy kullanmaz",
+  "@accusedCannotVote": { "description": "Default room rule. Shown to the accused on the verdict screen." },
+
+  "headmanBadge": "Muhtar",
+  "@headmanBadge": { "description": "Headman marker in the square. An office, not a role, so a vampire can hold it." },
+  "headmanWeightNote": "Muhtar'ın oyu {weight} sayılır",
+  "@headmanWeightNote": {
+    "description": "Headman vote weight: 3 with 13+ players, otherwise 2.",
+    "placeholders": { "weight": { "type": "int" } }
+  },
+
+  "ruleScreen": "Perde",
+  "@ruleScreen": { "description": "Room rule: projector screen. Off by default." },
+  "ruleScreenHint": "Salonda projeksiyon varsa aç. Kapalıysa meydan telefonda açılır.",
+  "@ruleScreenHint": { "description": "Explains the projector rule on the room creation screen." },
+  "ruleWatcher": "Gözcü",
+  "@ruleWatcher": { "description": "Room rule: include the Watcher role. On by default with 13+ players." },
+  "ruleWatcherHint": "12 ve altı oyuncuda Gözcü çok güçlü; varsayılan kapalı.",
+  "@ruleWatcherHint": { "description": "Explains the Watcher rule on the room creation screen." },
+  "ruleAccusedVotes": "Sanık oy kullanır",
+  "@ruleAccusedVotes": { "description": "Room rule: may the accused vote in their own trial. Off by default." },
+  "ruleAccusedVotesHint": "Kapalıyken sanık kendi davasında oy kullanamaz.",
+  "@ruleAccusedVotesHint": { "description": "Explains the accused-vote rule on the room creation screen." },
+
+  "modeSameRoom": "Salon",
+  "@modeSameRoom": { "description": "Game mode: everyone in one physical room." },
+  "modeRemote": "Uzaktan",
+  "@modeRemote": { "description": "Game mode: everyone plays from home." },
+
+  "chatChannelVillage": "Köy",
+  "@chatChannelVillage": { "description": "Chat channel, remote mode only." },
+  "chatChannelVampire": "Vampir",
+  "@chatChannelVampire": { "description": "Chat channel visible only to vampires." },
+  "chatChannelGhost": "Hayalet",
+  "@chatChannelGhost": { "description": "Chat channel visible only to the dead." },
+
+  "playerCountRange": "{min}-{max} oyuncu",
+  "@playerCountRange": {
+    "description": "Player count range. Engine: MIN_PLAYERS / MAX_PLAYERS.",
+    "placeholders": { "min": { "type": "int" }, "max": { "type": "int" } }
+  },
+  "vampireCount": "{count, plural, =1{1 vampir} other{{count} vampir}}",
+  "@vampireCount": {
+    "description": "Part of the role composition announced when the game starts.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "sealCounter": "{count, plural, =0{Henüz mühür yok} other{{count} mühür}}",
+  "@sealCounter": {
+    "description": "Seal counter in the square. Players never see crypto vocabulary, so 'seal' is the only Zcash-facing word.",
+    "placeholders": { "count": { "type": "int" } }
+  }
+}

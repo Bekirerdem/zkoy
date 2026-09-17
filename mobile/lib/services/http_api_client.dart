@@ -12,8 +12,7 @@ class HttpApiClient implements ApiClient {
   final String baseUrl;
   HttpApiClient({required this.baseUrl});
 
-  Uri _u(String path, [Map<String, String>? query]) =>
-      Uri.parse('$baseUrl$path').replace(queryParameters: query);
+  Uri _u(String path, [Map<String, String>? query]) => Uri.parse('$baseUrl$path').replace(queryParameters: query);
 
   Future<Map<String, dynamic>> _decode(Future<http.Response> req) async {
     final res = await req;
@@ -26,9 +25,7 @@ class HttpApiClient implements ApiClient {
       throw Exception('bağlantı hıçkırdı — tekrar deneniyor…');
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      final msg = body is Map && body['error'] != null
-          ? body['error'] as String
-          : 'API hatası ${res.statusCode}';
+      final msg = body is Map && body['error'] != null ? body['error'] as String : 'API hatası ${res.statusCode}';
       throw Exception(msg);
     }
     return body as Map<String, dynamic>;
@@ -37,23 +34,18 @@ class HttpApiClient implements ApiClient {
   @override
   Future<CreateRoomResult> createRoom() async {
     final j = await _decode(http.post(_u('/room')));
-    return CreateRoomResult(
-      code: j['code'] as String,
-      roomAddress: j['roomAddress'] as String,
-    );
+    return CreateRoomResult(code: j['code'] as String, roomAddress: j['roomAddress'] as String);
   }
 
   @override
-  Future<JoinResult> joinRoom({
-    required String code,
-    required String name,
-    required Tier tier,
-  }) async {
-    final j = await _decode(http.post(
-      _u('/room/$code/join'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name, 'tier': tier.wireInt}),
-    ));
+  Future<JoinResult> joinRoom({required String code, required String name, required Tier tier}) async {
+    final j = await _decode(
+      http.post(
+        _u('/room/$code/join'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'name': name, 'tier': tier.wireInt}),
+      ),
+    );
     return JoinResult(
       playerId: j['playerId'] as String,
       token: j['token'] as String,
@@ -68,9 +60,7 @@ class HttpApiClient implements ApiClient {
 
   @override
   Future<RoomState> getState(String code, {required String token}) async {
-    final j = await _decode(
-      http.get(_u('/room/$code/state', {'token': token})),
-    );
+    final j = await _decode(http.get(_u('/room/$code/state', {'token': token})));
     return RoomState.fromJson(j);
   }
 
@@ -79,10 +69,7 @@ class HttpApiClient implements ApiClient {
     final j = await _decode(http.post(_u('/room/$code/reveal')));
     final timeline = (j['timeline'] as List? ?? []);
     return timeline
-        .expand(
-          (b) => ((b as Map<String, dynamic>)['memos'] as List? ?? [])
-              .map((m) => m as Map<String, dynamic>),
-        )
+        .expand((b) => ((b as Map<String, dynamic>)['memos'] as List? ?? []).map((m) => m as Map<String, dynamic>))
         .toList();
   }
 
@@ -94,15 +81,12 @@ class HttpApiClient implements ApiClient {
     String? target,
     String? txt,
   }) async {
-    await _decode(http.post(
-      _u('/room/$code/action'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'token': token,
-        'type': type,
-        if (target != null) 'target': target,
-        if (txt != null) 'txt': txt,
-      }),
-    ));
+    await _decode(
+      http.post(
+        _u('/room/$code/action'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'token': token, 'type': type, 'target': ?target, 'txt': ?txt}),
+      ),
+    );
   }
 }

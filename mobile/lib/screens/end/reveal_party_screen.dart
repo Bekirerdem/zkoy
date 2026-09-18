@@ -54,11 +54,9 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
   }
 
   /// Memo'daki oyuncu id'sini isme çevirir (id'ler zincirde, isimler odada).
-  String _name(Map<String, String> names, dynamic id) =>
-      names[id] ?? (id?.toString() ?? '?');
+  String _name(Map<String, String> names, dynamic id) => names[id] ?? (id?.toString() ?? '?');
 
-  String? _memoLine(Map<String, dynamic> m, Map<String, String> names,
-      Map<String, Role> roles) {
+  String? _memoLine(Map<String, dynamic> m, Map<String, String> names, Map<String, Role> roles) {
     switch (m['t']) {
       case 'night':
         final actor = _name(names, m['p']);
@@ -84,13 +82,18 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
   @override
   Widget build(BuildContext context) {
     final gp = context.watch<GameProvider>();
-    final state = gp.state!;
+
+    // "Yeni Oyun" clears the room from this screen, and the screen is a pushed
+    // route, so it is not behind AppRoot's null guard: the notification rebuilds
+    // it with no state in the same frame, one frame before AppRoot pops the
+    // route. Render nothing for that frame instead of throwing.
+    final state = gp.state;
+    if (state == null) return const SizedBox.shrink();
+
     final end = state.end;
     final amAlive = state.me?.alive ?? false;
 
-    final names = <String, String>{
-      for (final p in state.players) p.id: p.name,
-    };
+    final names = <String, String>{for (final p in state.players) p.id: p.name};
     final roles = <String, Role>{
       for (final r in end?.reveals ?? <EndReveal>[])
         if (r.role != null) r.name: r.role!,
@@ -106,19 +109,14 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: end == null
-                  ? const Padding(
-                      padding: EdgeInsets.all(40),
-                      child: CircularProgressIndicator(),
-                    )
+                  ? const Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator())
                   : SingleChildScrollView(
                       padding: const EdgeInsets.all(24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            state.winner == 'koy'
-                                ? 'Köy kazandı 🏘️'
-                                : 'Vampirler kazandı 🧛',
+                            state.winner == 'koy' ? 'Köy kazandı 🏘️' : 'Vampirler kazandı 🧛',
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 6),
@@ -134,21 +132,12 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                             decoration: BoxDecoration(
                               color: Theme.of(context).cardTheme.color,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .secondary
-                                    .withValues(alpha: 0.5),
-                              ),
+                              border: Border.all(color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.5)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '🔑 Odanın Okuma Anahtarı',
-                                  style:
-                                      Theme.of(context).textTheme.titleLarge,
-                                ),
+                                Text('🔑 Odanın Okuma Anahtarı', style: Theme.of(context).textTheme.titleLarge),
                                 const SizedBox(height: 6),
                                 Text(
                                   'Bu oyunun TÜM mühürlü mektuplarını açan '
@@ -156,33 +145,23 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                                   'Kopyalayıp kendi Zcash cüzdanına izleme '
                                   'hesabı olarak ekleyebilir, aşağıdaki dökümü '
                                   'kendin doğrulayabilirsin.',
-                                  style:
-                                      Theme.of(context).textTheme.bodyMedium,
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
                                   _abbreviateKey(end.ufvk),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(fontFamily: 'monospace'),
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
                                 ),
                                 const SizedBox(height: 10),
                                 TextButton.icon(
                                   icon: const Icon(Icons.copy_rounded),
                                   label: const Text('Anahtarı Kopyala'),
                                   onPressed: () async {
-                                    await Clipboard.setData(
-                                      ClipboardData(text: end.ufvk),
-                                    );
+                                    await Clipboard.setData(ClipboardData(text: end.ufvk));
                                     if (context.mounted) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content:
-                                              Text('Anahtar kopyalandı ✓'),
-                                        ),
-                                      );
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(const SnackBar(content: Text('Anahtar kopyalandı ✓')));
                                     }
                                   },
                                 ),
@@ -190,10 +169,7 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                             ),
                           ),
                           const SizedBox(height: 22),
-                          Text(
-                            'Kimin eli neydi',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
+                          Text('Kimin eli neydi', style: Theme.of(context).textTheme.titleLarge),
                           const SizedBox(height: 10),
                           ...end.reveals.map((e) {
                             final payout = end.payouts
@@ -204,44 +180,24 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: roleColor(
-                                    role,
-                                  ).withValues(alpha: 0.15),
+                                  color: roleColor(role).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: roleColor(
-                                      role,
-                                    ).withValues(alpha: 0.4),
-                                  ),
+                                  border: Border.all(color: roleColor(role).withValues(alpha: 0.4)),
                                 ),
                                 child: Row(
                                   children: [
-                                    Text(
-                                      roleEmoji(role),
-                                      style: const TextStyle(fontSize: 20),
-                                    ),
+                                    Text(roleEmoji(role), style: const TextStyle(fontSize: 20)),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            e.name,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.titleLarge,
-                                          ),
+                                          Text(e.name, style: Theme.of(context).textTheme.titleLarge),
                                           Text(
                                             '${role.label} · ${TierX.fromInt(e.tier).label}',
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodyMedium,
+                                            style: Theme.of(context).textTheme.bodyMedium,
                                           ),
                                         ],
                                       ),
@@ -249,10 +205,7 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                                     if (payout > 0)
                                       Text(
                                         '+${formatZats(payout)}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge
-                                            ?.copyWith(color: Colors.green),
+                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.green),
                                       ),
                                   ],
                                 ),
@@ -261,31 +214,18 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
                           }),
                           const SizedBox(height: 22),
                           // ── Oyun dökümü: mühürlerin çözülmüş içi ──
-                          Text(
-                            'Oyun dökümü — mühürlerin içi',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
+                          Text('Oyun dökümü — mühürlerin içi', style: Theme.of(context).textTheme.titleLarge),
                           const SizedBox(height: 4),
-                          Text(
-                            'Zincire mühürlenen her hamle, tur tur:',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
+                          Text('Zincire mühürlenen her hamle, tur tur:', style: Theme.of(context).textTheme.bodyMedium),
                           const SizedBox(height: 10),
                           if (_memos == null)
                             const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(12),
-                                child: CircularProgressIndicator(),
-                              ),
+                              child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()),
                             )
                           else
                             ..._buildTimeline(context, names, roles),
                           const SizedBox(height: 24),
-                          ZkoyButton(
-                            label: 'Yeni Oyun',
-                            onPressed: () =>
-                                context.read<GameProvider>().leaveRoom(),
-                          ),
+                          ZkoyButton(label: 'Yeni Oyun', onPressed: () => context.read<GameProvider>().leaveRoom()),
                         ],
                       ),
                     ),
@@ -296,8 +236,7 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
     );
   }
 
-  List<Widget> _buildTimeline(BuildContext context,
-      Map<String, String> names, Map<String, Role> roles) {
+  List<Widget> _buildTimeline(BuildContext context, Map<String, String> names, Map<String, Role> roles) {
     final rows = <Widget>[];
     int? lastRound;
     var shown = 0;
@@ -307,24 +246,29 @@ class _RevealPartyScreenState extends State<RevealPartyScreen> {
       final round = m['r'] as int?;
       if (round != null && round != lastRound) {
         lastRound = round;
-        rows.add(Padding(
-          padding: const EdgeInsets.only(top: 10, bottom: 4),
-          child: Text('— Tur $round —',
-              style: Theme.of(context).textTheme.bodyMedium),
-        ));
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 4),
+            child: Text('— Tur $round —', style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        );
       }
-      rows.add(Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(line, style: Theme.of(context).textTheme.bodyLarge),
-      ));
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(line, style: Theme.of(context).textTheme.bodyLarge),
+        ),
+      );
       shown++;
     }
     if (shown == 0) {
-      rows.add(Text(
-        'Döküm henüz boş — mühürler zincire oturdukça burada görünür '
-        '(perdedeki MÜHÜR DEFTERİ de aynı kanıtı gösterir).',
-        style: Theme.of(context).textTheme.bodyMedium,
-      ));
+      rows.add(
+        Text(
+          'Döküm henüz boş — mühürler zincire oturdukça burada görünür '
+          '(perdedeki MÜHÜR DEFTERİ de aynı kanıtı gösterir).',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
     }
     return rows;
   }

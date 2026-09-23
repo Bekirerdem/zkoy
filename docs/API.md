@@ -1,129 +1,117 @@
-# ZKöy API — kesin sözleşme (Flutter hizalama dosyası)
+# ZKöy API v3 — WebSocket sözleşmesi
 
-> Bu dosya sunucunun **gerçek** istek/cevap şekilleridir (SPEC §3'ün somut hali).
-> Model sınıflarını buradaki alan adlarına birebir hizala. Taban URL:
-> `http://<laptop-IP>:3131` (telefon aynı Wi-Fi'da; CORS açık).
+> Web istemcisi ve Flutter uygulaması bu sözleşmeyi konuşur. Sunucu: `src/server/index.ts`.
+> v1 HTTP API'si `v1` dalında. Kapsam: salon modu (SPEC v3 §3), misafir giriş.
 
-## İlk spec'ten farklar (ÖNEMLİ)
+## Bağlantı
 
-- **TEK MOD: Ağalık.** `mode` alanı HİÇBİR yerde yok. Oda kurarken gövde gönderilmez.
-- Herkes katılırken kademe seçer: `tier` 1=Rençber, 2=Muhtar, 3=Ağa (oy ağırlığı = tier).
-- Kademe taahhüdü (commit) tamamen sunucuda — istemci hash'le uğraşmaz.
+- `wss://zkoy.fun/ws` (yerelde `ws://localhost:3131/ws`). Tek soket; bütün mesajlar JSON, tek satır.
+- İlk mesaj **her zaman** `hello`. `device` = cihazda kalıcı rastgele kimlik (localStorage / secure storage), ≤ 64 karakter.
+- Token yalnız WS mesajında taşınır, URL'de asla. Cihazda sakla: `{code, token}` → sayfa yenilenince `hello` ile aynı koltuğa dönülür.
+- Mesaj üst sınırı 4 KB. Hatalar `{"t":"error","e":"türkçe mesaj"}` — doğrudan ekrana basılabilir.
+- Katılım linki / QR: `https://zkoy.fun/j/<KOD>` (web istemcisini açar, kod ön-dolu).
 
-## Genel
+## İstemci → sunucu
 
-- Tüm cevaplar JSON. Hata: HTTP 400/404/500 + `{"error":"türkçe mesaj"}` — direkt ekrana basılabilir.
-- Durum yenileme: `GET state`'i **1-2 sn'de bir** poll'la. Sayaçlar `endsAt`'ten (epoch ms, `null` olabilir) istemcide hesaplanır.
-- Fazlar: `LOBBY → NIGHT → DAWN → DAY → VOTE → EXECUTION → (NIGHT... | END)`
-- Roller: `vampir | koylu | doktor | gozcu | deli`
+| Mesaj | Ne zaman | Alanlar |
+|---|---|---|
+| `{"t":"hello","device":"…"}` | açılışta | isteğe bağlı `code` + `token` = yeniden bağlanma |
+| `{"t":"create","name":"Ali","rules":{"gozcu":null,"accusedVotes":false}}` | oda kur | ad 1-16; `rules` isteğe bağlı (`gozcu`: `null` otomatik 13+, `true`, `false`) |
+| `{"t":"join","code":"ACDE23","name":"Ayşe"}` | kodla gir | aynı cihaz aynı odaya yeniden girerse aynı koltuk |
+| `{"t":"watch","code":"ACDE23"}` | perde / seyirci | yalnız `state` alır |
+| `{"t":"act","a":…}` | oyuncu hamlesi | aşağıda |
+| `{"t":"cmd","c":…}` | kurucu / Muhtar komutu | aşağıda |
 
-## 1. Oda kur
+### Hamleler (`act`)
 
-`POST /room` (gövdesiz)
+| `a` | Faz | Alanlar | Kim |
+|---|---|---|---|
+| `nominate` | ELECTION | — | yaşayan, kendini aday gösterir |
+| `mvote` | ELECTION | `x` aday id | yaşayan; herkes oy verince seçim kendiliğinden biter |
+| `night` | NIGHT | `x` hedef | vampir (kurban), doktor (koruma, kendisi olabilir), gözcü (sorgu); hepsi seçince gece kendiliğinden biter |
+| `accuse` | DAY (free) | `x` | yaşayan |
+| `second` | DAY (free) | `x` suçlanan | başka bir yaşayan destekler → dava açılır (trial) |
+| `done` | DAY (trial) | — | sanık "savunmam bitti" → karar oyu |
+| `verdict` | DAY (verdict) | `y` true=assın / false=asmasın | yaşayan; varsayılan kuralda sanık oy kullanmaz; sonuç kesinleşince kendiliğinden kapanır |
+| `gvote` | DAY | `x` | hayalet (ölü) kehanet: bugün kim asılacak |
+| `will` | her faz | `txt` ≤ 200 | yaşayan vasiyet |
+| `heir` | DAWN / EXECUTION | `x` | ölen Muhtar halef gösterir (`me.heirRight`) |
 
-```json
-{ "code": "UJ4Z", "roomAddress": "utest1..." }
-```
+### Komutlar (`cmd`)
 
-## 2. Katıl
+| `c` | Faz | Kim |
+|---|---|---|
+| `start` | LOBBY | kurucu; en az 7 oyuncu |
+| `kick` + `x` | LOBBY | kurucu |
+| `closeElection` | ELECTION | kurucu (oy vermeyen varsa) |
+| `closeNight` | NIGHT | kurucu, gece ≥ 90 sn sürdüyse (salon sigortası) |
+| `startDay` | DAWN | Muhtar ya da kurucu |
+| `toVerdict` | DAY (trial) | Muhtar ya da kurucu ("oylamaya geç") |
+| `closeDay` | DAY (free) | Muhtar ya da kurucu → gece |
+| `nextRound` | EXECUTION | Muhtar ya da kurucu → gece |
 
-`POST /room/UJ4Z/join`
+Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir.
 
-```json
-{ "name": "Asiye", "tier": 3 }
-```
+## Sunucu → istemci
 
-→
+| Mesaj | İçerik |
+|---|---|
+| `{"t":"joined","code","pid","token"}` | create/join cevabı; `{code, token}` sakla |
+| `{"t":"state","s":{…}}` | meydan (herkese açık), her değişimde |
+| `{"t":"me","m":{…}}` | yalnız sana; her değişimde |
+| `{"t":"error","e":"…"}` | reddedilen istek |
 
-```json
-{ "playerId": "p0-f390f802", "token": "b1946ac9-...", "playerAddress": "utest1..." }
-```
+### `state.s`
 
-`token`'ı sakla — tüm aksiyonlar ve kişisel state bununla. İsim odada benzersiz olmalı
-(tek tırnak `'` isimden silinir, 24 karakter üstü kırpılır).
-
-## 3. Başlat (ebe/kurucu butonu)
-
-`POST /room/UJ4Z/start` → `{ "ok": true }` (7'den az oyuncuda 400 döner)
-
-## 4. Durum
-
-`GET /room/UJ4Z/state?token=<token>` — token'sız da çalışır (perde verisi), `me`/`ghost` gelmez.
-
-```json
+```jsonc
 {
-  "code": "UJ4Z",
-  "phase": "NIGHT",
-  "round": 1,
-  "endsAt": 1786920000000,
-  "potZats": 2900000,
-  "height": 4276002,
-  "players": [ { "id": "p0-f390f802", "name": "Asiye", "alive": true } ],
-  "voteWeightCast": null,
-  "announcements": [
-    { "at": 1786919000000, "kind": "dawn", "text": "Şafak söktü. ...", "will": "vasiyet metni | null" }
-  ],
-  "winner": null,
-  "roomAddress": "utest1...",
-  "chain": "mock",
-  "sealedCount": 4,
-  "me": {
-    "id": "p0-f390f802",
-    "name": "Asiye",
-    "role": "gozcu",
-    "alive": true,
-    "tier": 3,
-    "will": null,
-    "acted": false,
-    "targets": [ { "id": "p1-...", "name": "Cemal" } ],
-    "gozcuResult": { "name": "Rıza", "vamp": true }
-  }
+  "code": "ACDE23", "phase": "LOBBY|ELECTION|NIGHT|DAWN|DAY|EXECUTION|END", "round": 1,
+  "rules": { "gozcu": null, "accusedVotes": false },
+  "hostPid": "p0", "muhtar": "p2", "muhtarWeight": 2, "heirPending": null,
+  "players": [{ "id": "p0", "name": "Ali", "alive": true, "isHost": true, "isMuhtar": false, "role": null }],
+  // role: yalnız ölüler ve END'de dolu
+  "election": { "candidates": ["p2"], "votes": { "p0": "p2" }, "tally": { "p2": 1 } },
+  "day": {
+    "stage": "free|trial|verdict",
+    "accusations": { "p3": "p4" },            // suçlayan → suçlanan (destek bekleyen)
+    "trial": { "accused": "p4", "accuser": "p3", "seconder": "p5", "verdicts": { "p0": true } },
+    "triedToday": [], "weights": { "p2": 2, "p0": 1 }  // dava varken oy ağırlıkları
+  },
+  "lastNight": { "round": 1, "died": "p6", "saved": false },
+  "lastVerdict": { "round": 1, "accused": "p4", "lynched": "p4", "role": "vampir", "guilty": 5, "notGuilty": 2 },
+  "winner": null, "deliWon": false,
+  "badges": null, "kahinScore": null,           // END'de dolu
+  "reveal": null,                                // END: { seed, salt, commit, ufvk, roomAddress }
+  "nightStartedAt": 1790000000000,
+  "announcements": [{ "at": 0, "kind": "info|dawn|verdict|end", "text": "…", "will": "…" }],
+  "seals": { "chain": "zingo|mock", "txCount": 4, "memoCount": 31, "pending": 2, "recent": ["txid…"] }
 }
 ```
 
-Alan notları:
+### `me.m`
 
-- `voteWeightCast`: yalnız `VOTE` fazında sayı (sandıktaki toplam ağırlık), diğer fazlarda `null`.
-- `me.acted`: bu fazda hamlem alındı mı (gece hamlesi / oy). Buton kilitlemek için.
-- `me.targets`: bu fazda seçilebilir hedefler. Gece köylüye boş `[]` gelir ("köy uyuyor" ekranı).
-  Doktor listesinde **kendisi de vardır** (kendini koruyabilir).
-- `me.gozcuResult`: yalnız gözcüde; son gecenin sorgu cevabı, yoksa `null`.
-- `winner`: `"koy" | "vampir" | null`.
-- Ölünce ekstra `ghost` alanı gelir (hayalet ekranı — mühürlü oda memo akışı):
-
-```json
-"ghost": { "memos": [ { "txid": "mock:3", "memo": { "v": 1, "t": "night", "r": 1, "p": "p2-...", "x": "p0-..." } } ] }
-```
-
-- `phase === "END"` iken ekstra `end` alanı:
-
-```json
-"end": {
-  "payouts": [ { "name": "Cemal", "zats": 2372727, "reason": "köy kazandı" } ],
-  "ufvk": "uviewtest1...",
-  "reveals": [ { "name": "Asiye", "tier": 3, "salt": "…", "commit": "6f6d…", "role": "koylu" } ]
+```jsonc
+{
+  "pid": "p3", "name": "Ayşe", "role": "vampir", "alive": true,
+  "isHost": false, "isMuhtar": false, "will": null,
+  "team": ["p7"],                                  // vampirse diğer vampirler
+  "night": { "targets": { "p3": "p1" } },          // gece: vampir takım hedefleri | {save} doktor | {query} gözcü
+  "gozcuLog": [{ "round": 1, "target": "p4", "vamp": true }],
+  "roles": null,                                   // ölüysen herkesin rolü (hayalet)
+  "myProphecy": null, "heirRight": false,
+  "can": ["accuse", "second", "will"]
 }
 ```
 
-## 5. Aksiyon
+## Akış özeti
 
-`POST /room/UJ4Z/action`
+1. `hello` → `create` (kurucu) → `joined` → QR/`/j/KOD` paylaş → diğerleri `hello` → `join`.
+2. Kurucu `cmd start` → ELECTION: `nominate` / `mvote` → Muhtar ilan edilir → NIGHT.
+3. NIGHT: rol sahipleri `night` → otomatik DAWN (duyuru: ölen + rolü, vasiyet).
+4. DAWN: Muhtar `startDay` → DAY: `accuse` → `second` → sanık `done` (ya da Muhtar `toVerdict`) → herkes `verdict` → asılırsa EXECUTION (Muhtar `nextRound`), beraatse DAY devam; gün sonu Muhtar `closeDay`.
+5. END: `state.reveal` (kura tohumu+tuz, oda görüntüleme anahtarı) + rozetler; sunucu `gameroot` mührünü gönderir.
 
-```json
-{ "token": "…", "type": "night", "target": "p1-…" }
-{ "token": "…", "type": "vote",  "target": "p1-…" }
-{ "token": "…", "type": "gvote", "target": "p1-…" }
-{ "token": "…", "type": "will",  "txt": "en fazla 200 karakter" }
-```
+## HTTP
 
-→ `{ "ok": true }` | 400 `{ "error": "…" }`
-
-- `night`: vampir/doktor/gözcü, NIGHT fazında. Aynı fazda tekrar gönderim hamleyi günceller.
-- `vote`: yaşayanlar, VOTE fazında. `gvote`: yalnız ölüler (kehanet), VOTE fazında.
-- `will`: yaşayan herkes, her fazda.
-- Tüm gece aktörleri + tüm yaşayan oyuncular oy verince faz **erken çözülür** — sayaç beklenmez.
-
-## 6. Perde ve ifşa
-
-- Perde sayfası (projeksiyon, tarayıcı): `GET /screen/UJ4Z` — Flutter'ın işi değil, hazır.
-- `POST /room/UJ4Z/reveal` → `{ ufvk, roomAddress, reveals, timeline }` (denetim; normalde perde kullanır).
+- `GET /stats` → `{games, finishedGames, uniqueDevices, playerSeats, sealedTx, sealedMemos, since, liveRooms, chain, opsBalanceZat, height}`
+- `GET /health` → `{ok, chain}`

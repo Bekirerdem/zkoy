@@ -8,7 +8,7 @@ import {
   resolveNight,
   startDay,
 } from "../src/engine/engine";
-import { Role, RoomState } from "../src/engine/types";
+import { Role, RoomRules, RoomState } from "../src/engine/types";
 
 /** NIGHT round 1 with nobody acting → DAWN → DAY (quiet night). */
 export function inDay(n: number, seed = 42): RoomState {
@@ -32,8 +32,11 @@ export function inNight(n: number, seed = 42): RoomState {
   return state;
 }
 
-export function makeRoom(n: number): RoomState {
-  const state = createRoom("TEST");
+/** v2 kural seti: gözcü her zaman, sanık oy kullanır (eski testlerin varsayımı). */
+export const V2_RULES = { gozcu: true, accusedVotes: true };
+
+export function makeRoom(n: number, rules: Partial<RoomRules> = V2_RULES): RoomState {
+  const state = createRoom("TEST", rules);
   for (let i = 0; i < n; i++) join(state, `p${i}`, `oyuncu${i}`);
   return state;
 }

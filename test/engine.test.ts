@@ -38,12 +38,12 @@ describe("will + envelope + replay", () => {
   test("will updates while alive, 200 char cap, dead rejected", () => {
     const state = inDay(7);
     const ev = setWill(state, "p1", "beni doktor kurtarsın");
-    expect(ev[0]!.memo).toEqual({ v: 2, g: "TEST", t: "will", p: "p1", txt: "beni doktor kurtarsın" });
+    expect(ev[0]!.memo).toEqual({ v: 3, g: "TEST", t: "will", p: "p1", txt: "beni doktor kurtarsın" });
     expect(() => setWill(state, "p1", "x".repeat(201))).toThrow(EngineError);
     lynchToday(state, "p1");
     expect(() => setWill(state, "p1", "geç")).toThrow(EngineError);
   });
-  test("every memo of a full game carries v:2 and the room code; game ends", () => {
+  test("every memo of a full game (v3 default rules) carries v:3 and the room code; game ends", () => {
     const all: MemoEvent[] = [];
     const state = createRoom("TEST");
     for (let i = 0; i < 9; i++) all.push(...join(state, `p${i}`, `oyuncu${i}`));
@@ -75,14 +75,15 @@ describe("will + envelope + replay", () => {
         all.push(...second(state, seconder, target));
         all.push(...openVerdict(state, null, { force: true, by: "host" }));
         for (const id of alive)
-          if (state.day.stage === "verdict") all.push(...castVerdict(state, id, true));
+          if (id !== target && state.day.stage === "verdict")
+            all.push(...castVerdict(state, id, true));
       } else if (state.phase === "EXECUTION") {
         all.push(...nextRound(state));
       }
     }
     expect(state.phase).toBe("END");
     expect(state.winner).not.toBeNull();
-    for (const e of all) expect(e.memo).toMatchObject({ v: 2, g: "TEST" });
+    for (const e of all) expect(e.memo).toMatchObject({ v: 3, g: "TEST" });
     const types = new Set(all.map((e) => e.memo.t));
     for (const t of [
       "join", "seed", "role", "mvote", "muhtar", "night", "result", "phase",
@@ -119,7 +120,7 @@ describe("ghosts, badges, win", () => {
     startDay(state);
     expect(() => gvote(state, "p0", vampir!)).toThrow(EngineError); // alive cannot gvote
     const ev = gvote(state, ghostId, vampir!);
-    expect(ev[0]!.memo).toEqual({ v: 2, g: "TEST", t: "gvote", r: 2, p: ghostId, x: vampir });
+    expect(ev[0]!.memo).toEqual({ v: 3, g: "TEST", t: "gvote", r: 2, p: ghostId, x: vampir });
     lynchToday(state, vampir!); // last vampire → koy wins → END
     expect(state.phase).toBe("END");
     expect(state.winner).toBe("koy");
@@ -190,7 +191,7 @@ describe("ghosts, badges, win", () => {
     expect(events.find((e) => e.memo.t === "phase")!.memo).toMatchObject({ ph: "END", winner: "koy" });
     expect(events.filter((e) => e.memo.t === "badge").length).toBe(state.badges!.length);
     expect(events.find((e) => e.memo.t === "seedr")!.memo).toEqual({
-      v: 2,
+      v: 3,
       g: "TEST",
       t: "seedr",
       seed: 42,
@@ -203,7 +204,7 @@ describe("day trial", () => {
   test("accusation is pending until seconded; seconder cannot be the accuser or the accused", () => {
     const state = inDay(7);
     const ev = accuse(state, "p1", "p2");
-    expect(ev[0]!.memo).toEqual({ v: 2, g: "TEST", t: "accuse", r: 1, p: "p1", x: "p2" });
+    expect(ev[0]!.memo).toEqual({ v: 3, g: "TEST", t: "accuse", r: 1, p: "p1", x: "p2" });
     expect(state.day.stage).toBe("free");
     expect(() => second(state, "p1", "p2")).toThrow(EngineError);
     expect(() => second(state, "p2", "p2")).toThrow(EngineError);
@@ -244,7 +245,7 @@ describe("day trial", () => {
     expect(state.lastVerdict).toMatchObject({ accused: "p2", lynched: "p2", guilty: 5, notGuilty: 0 });
     expect(ev.find((e) => e.memo.t === "result")!.memo).toMatchObject({ lynched: "oyuncu2" });
     expect(ev.find((e) => e.memo.t === "verdict")!.memo).toEqual({
-      v: 2,
+      v: 3,
       g: "TEST",
       t: "verdict",
       r: 1,
@@ -314,7 +315,7 @@ describe("election", () => {
     expect(() => electionVote(state, "p1", "p0")).toThrow(EngineError); // p0 not a candidate
     nominate(state, "p0");
     const events = electionVote(state, "p1", "p0");
-    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "mvote", r: 0, p: "p1", x: "p0" });
+    expect(events[0]!.memo).toEqual({ v: 3, g: "TEST", t: "mvote", r: 0, p: "p1", x: "p0" });
     expect(electionComplete(state)).toBe(false);
   });
   test("plurality wins; muhtar memo carries weight; phase → NIGHT round 1", () => {
@@ -328,7 +329,7 @@ describe("election", () => {
     expect(electionComplete(state)).toBe(true);
     const events = resolveElection(state, 99);
     expect(state.muhtar).toBe("p0");
-    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "muhtar", p: "p0", w: 2 });
+    expect(events[0]!.memo).toEqual({ v: 3, g: "TEST", t: "muhtar", p: "p0", w: 2 });
     expect(state.phase).toBe("NIGHT");
     expect(state.round).toBe(1);
   });
@@ -384,7 +385,7 @@ describe("lobby v2", () => {
   test("join emits v2 join memo with room code, no tier", () => {
     const state = createRoom("TEST");
     const events = join(state, "p0", "ali");
-    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "join", p: "p0", name: "ali" });
+    expect(events[0]!.memo).toEqual({ v: 3, g: "TEST", t: "join", p: "p0", name: "ali" });
     expect(state.players[0]).toMatchObject({ id: "p0", name: "ali", alive: true, role: null });
   });
   test("duplicate name and full room are rejected", () => {
@@ -399,7 +400,7 @@ describe("lobby v2", () => {
   test("start seals the seed commitment first, deals roles, opens ELECTION", () => {
     const state = makeRoom(10);
     const events = start(state, 42, "commit-42");
-    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "seed", c: "commit-42" });
+    expect(events[0]!.memo).toEqual({ v: 3, g: "TEST", t: "seed", c: "commit-42" });
     expect(events.length).toBe(11); // seed + 10 role cards
     expect(state.phase).toBe("ELECTION");
     expect(state.round).toBe(0);
@@ -437,7 +438,7 @@ describe("night v2", () => {
     expect(state.players.find((p) => p.id === civ[0])!.alive).toBe(false);
     expect(state.phase).toBe("DAWN");
     expect(events.find((e) => e.memo.t === "seerr")!.memo).toMatchObject({
-      v: 2,
+      v: 3,
       g: "TEST",
       x: vamps[0],
       vamp: true,
@@ -469,7 +470,7 @@ describe("night v2", () => {
     expect(state.heirPending).toBe("p0");
     expect(() => nameHeir(state, "p1", "p2")).toThrow(EngineError); // only the dead Muhtar
     const events = nameHeir(state, "p0", "p2");
-    expect(events[0]!.memo).toEqual({ v: 2, g: "TEST", t: "heir", p: "p0", x: "p2" });
+    expect(events[0]!.memo).toEqual({ v: 3, g: "TEST", t: "heir", p: "p0", x: "p2" });
     expect(state.muhtar).toBe("p2");
     startDay(state, "muhtar");
     expect(state.heirPending).toBeNull();

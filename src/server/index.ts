@@ -1,287 +1,229 @@
-// ZKöy HTTP API — the contract Selinay's Flutter app builds against (SPEC §3).
+// ZKöy v3 sunucusu: tek Bun süreci. WebSocket oda katmanı + statik web
+// istemcisi + /stats (Q4 retro kanıtı). Sözleşme: docs/API.md.
 
+import type { Server, ServerWebSocket } from "bun";
+import { existsSync } from "node:fs";
+import { join as joinPath, normalize } from "node:path";
 import { EngineError } from "../engine/engine";
-import { Tier } from "../engine/types";
+import { startFaucetLoop } from "../zcash/faucet";
 import { MockZcashService } from "../zcash/mock";
+import { ZcashService } from "../zcash/service";
 import { ZingoService } from "../zcash/zingo";
-import { Room, RoomRegistry } from "./rooms";
-import { landingHtml } from "./landing";
-import { screenHtml } from "./screen";
+import { Db, openDb } from "./db";
+import { ClientMsg, MAX_MSG_BYTES, ProtocolError, parseClientMsg } from "./protocol";
+import { Room } from "./room";
+import { SealQueue } from "./seal-queue";
+import { privateView, publicView } from "./views";
 
-const PORT = Number(process.env.ZKOY_PORT ?? 3131);
-const WEB_DIR = process.env.ZKOY_WEB_DIR ?? "mobile/build/web";
-let qrLibCache: string | null = null;
-const zcash =
-  process.env.ZKOY_CHAIN === "zingo" ? new ZingoService() : new MockZcashService();
-const registry = new RoomRegistry(zcash);
+const CODE_ALPHABET = "ACDEFHJKLMNPRSTUVYZ234679";
+const SNAPSHOT_MAX_AGE_MS = 6 * 3600_000;
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...CORS },
-  });
+interface WsData {
+  ip: string;
+  device?: string;
+  code?: string;
+  pid?: string;
 }
 
-function statePayload(room: Room, token: string | null, height: number) {
-  const s = room.state;
-  const base: Record<string, unknown> = {
-    code: s.code,
-    phase: s.phase,
-    round: s.round,
-    endsAt: room.phaseEndsAt,
-    potZats: s.potZats,
-    height,
-    players: s.players.map((p) => ({ id: p.id, name: p.name, alive: p.alive })),
-    voteWeightCast:
-      s.phase === "VOTE"
-        ? Object.keys(s.votes).reduce(
-            (sum, id) =>
-              sum + (s.players.find((p) => p.id === id)?.tier ?? 0),
-            0,
-          )
-        : null,
-    announcements: room.announcements.slice(-12),
-    winner: s.winner,
-    roomAddress: room.address,
-    chain: zcash.kind,
-    sealedCount: zcash.sealed(s.code).length,
+type Ws = ServerWebSocket<WsData>;
+
+export interface ServerOptions {
+  port?: number;
+  db?: Db;
+  zcash?: ZcashService;
+  webDir?: string;
+}
+
+/** Sliding one-minute window per IP and action. */
+class RateLimit {
+  private hits = new Map<string, number[]>();
+  allow(key: string, perMinute: number): boolean {
+    const now = Date.now();
+    const list = (this.hits.get(key) ?? []).filter((t) => now - t < 60_000);
+    if (list.length >= perMinute) {
+      this.hits.set(key, list);
+      return false;
+    }
+    list.push(now);
+    this.hits.set(key, list);
+    return true;
+  }
+}
+
+export function startServer(opts: ServerOptions = {}) {
+  const db = opts.db ?? openDb();
+  const zcash =
+    opts.zcash ?? (process.env.ZKOY_CHAIN === "zingo" ? new ZingoService() : new MockZcashService());
+  const seals = new SealQueue(db, zcash);
+  const webDir = opts.webDir ?? process.env.ZKOY_WEB_DIR ?? "web";
+  const rooms = new Map<string, Room>();
+  const sockets = new Map<string, Set<Ws>>(); // code → bağlı oyuncu soketleri
+  const limits = new RateLimit();
+  let server: Server<WsData>;
+
+  const deps = { db, zcash, seals };
+
+  function wire(room: Room) {
+    room.onChange = () => broadcast(room);
+    rooms.set(room.code, room);
+  }
+
+  // Açılış: yarım kalan odalar ve mühür kuyruğu geri gelir.
+  for (const row of db.loadSnapshots(SNAPSHOT_MAX_AGE_MS)) {
+    try {
+      wire(Room.restore(row.json, deps));
+    } catch (e) {
+      console.error(`[boot] ${row.code} geri yüklenemedi:`, e);
+    }
+  }
+  seals.onSealed = (code) => {
+    const room = rooms.get(code);
+    if (room) broadcast(room);
   };
-  if (s.phase === "END") {
-    base.end = {
-      payouts: (s.payouts ?? []).map((p) => ({
-        name: s.players.find((q) => q.id === p.playerId)?.name,
-        zats: p.zats,
-        reason: p.reason,
-      })),
-      ufvk: room.ufvk,
-      reveals: s.players.map((p) => ({
-        name: p.name,
-        tier: p.tier,
-        salt: p.tierSalt,
-        commit: p.tierCommit,
-        role: p.role,
-      })),
-    };
+  seals.resume();
+
+  function broadcast(room: Room) {
+    if (!server) return;
+    server.publish(
+      `room:${room.code}`,
+      JSON.stringify({ t: "state", s: publicView(room, seals, zcash.kind) }),
+    );
+    for (const ws of sockets.get(room.code) ?? []) sendMe(ws, room);
   }
-  if (token) {
-    const pid = room.playerId(token);
-    const me = s.players.find((p) => p.id === pid)!;
-    const aliveOthers = s.players
-      .filter((p) => p.alive && p.id !== pid)
-      .map((p) => ({ id: p.id, name: p.name }));
-    base.me = {
-      id: me.id,
-      name: me.name,
-      role: me.role,
-      alive: me.alive,
-      tier: me.tier,
-      isHost: me.id === room.hostPlayerId,
-      will: me.will,
-      acted:
-        s.phase === "NIGHT"
-          ? me.role === "vampir"
-            ? s.night.vampireTargets[pid] != null
-            : me.role === "doktor"
-              ? s.night.doctorSave != null
-              : me.role === "gozcu"
-                ? s.night.gozcuTarget != null
-                : true
-          : s.phase === "VOTE"
-            ? (me.alive ? s.votes[pid] : s.gvotes[pid]) != null
-            : true,
-      targets:
-        s.phase === "NIGHT" && me.alive
-          ? me.role === "doktor"
-            ? [{ id: me.id, name: me.name }, ...aliveOthers]
-            : aliveOthers
-          : s.phase === "VOTE"
-            ? aliveOthers
-            : [],
-      gozcuResult:
-        me.role === "gozcu" && s.lastNight?.gozcuResult
-          ? {
-              name: s.players.find(
-                (p) => p.id === s.lastNight!.gozcuResult!.target,
-              )?.name,
-              vamp: s.lastNight.gozcuResult.vamp,
-            }
-          : null,
-    };
-    if (!me.alive) {
-      // Ghost feed: the sealed room memos, exactly what the viewing key sees.
-      base.ghost = {
-        memos: zcash
-          .sealed(s.code)
-          .flatMap((batch) =>
-            batch.events
-              .filter((e) => e.to === "room")
-              .map((e) => ({ txid: batch.txid, memo: e.memo })),
-          ),
-      };
+
+  function sendMe(ws: Ws, room: Room) {
+    if (!ws.data.pid) return;
+    const m = privateView(room, ws.data.pid);
+    if (m) ws.send(JSON.stringify({ t: "me", m }));
+  }
+
+  function attach(ws: Ws, room: Room, pid?: string) {
+    if (ws.data.code && ws.data.code !== room.code) sockets.get(ws.data.code)?.delete(ws);
+    ws.data.code = room.code;
+    ws.data.pid = pid;
+    ws.subscribe(`room:${room.code}`);
+    if (pid) {
+      const set = sockets.get(room.code) ?? new Set<Ws>();
+      set.add(ws);
+      sockets.set(room.code, set);
+    }
+    ws.send(JSON.stringify({ t: "state", s: publicView(room, seals, zcash.kind) }));
+    sendMe(ws, room);
+  }
+
+  function newCode(): string {
+    for (;;) {
+      const bytes = crypto.getRandomValues(new Uint8Array(6));
+      const code = [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
+      if (!rooms.has(code)) return code;
     }
   }
-  return base;
+
+  function roomOf(code: string): Room {
+    const room = rooms.get(code);
+    if (!room) throw new EngineError("böyle bir oda yok");
+    return room;
+  }
+
+  async function handle(ws: Ws, msg: ClientMsg) {
+    if (msg.t === "hello") {
+      ws.data.device = msg.device;
+      if (msg.code && msg.token) {
+        const room = roomOf(msg.code);
+        attach(ws, room, room.auth(msg.token));
+      }
+      return;
+    }
+    if (msg.t === "watch") {
+      attach(ws, roomOf(msg.code));
+      return;
+    }
+    const device = ws.data.device;
+    if (msg.t === "create" || msg.t === "join") {
+      if (!device) throw new ProtocolError("önce hello gönder");
+      let room: Room;
+      if (msg.t === "create") {
+        if (!limits.allow(`create:${ws.data.ip}`, 5)) throw new ProtocolError("çok hızlı oda kuruluyor, biraz bekle");
+        room = new Room(newCode(), deps, msg.rules);
+        await room.init();
+        wire(room);
+      } else {
+        if (!limits.allow(`join:${ws.data.ip}`, 30)) throw new ProtocolError("çok fazla deneme, biraz bekle");
+        room = roomOf(msg.code);
+      }
+      const { pid, token } = room.join(device, msg.name);
+      ws.send(JSON.stringify({ t: "joined", code: room.code, pid, token }));
+      attach(ws, room, pid);
+      broadcast(room);
+      return;
+    }
+    const { code, pid } = ws.data;
+    if (!code || !pid) throw new ProtocolError("önce odaya katıl");
+    const room = roomOf(code);
+    if (msg.t === "act") room.act(pid, msg);
+    else room.cmd(pid, msg);
+  }
+
+  function serveStatic(pathname: string): Response {
+    const rel = pathname === "/" || pathname.startsWith("/j/") ? "index.html" : pathname.slice(1);
+    const file = normalize(joinPath(webDir, rel));
+    if (!file.startsWith(normalize(webDir)) || !existsSync(file))
+      return new Response("bulunamadı", { status: 404 });
+    return new Response(Bun.file(file), {
+      headers: rel === "index.html" ? { "Cache-Control": "no-cache" } : {},
+    });
+  }
+
+  let balanceCache: { v: number | null; at: number } = { v: null, at: 0 };
+  async function opsBalance(): Promise<number | null> {
+    if (Date.now() - balanceCache.at > 60_000) balanceCache = { v: await zcash.balance(), at: Date.now() };
+    return balanceCache.v;
+  }
+
+  server = Bun.serve<WsData>({
+    port: opts.port ?? Number(process.env.ZKOY_PORT ?? 3131),
+    async fetch(req, srv) {
+      const url = new URL(req.url);
+      if (url.pathname === "/ws") {
+        const ip = req.headers.get("cf-connecting-ip") ?? srv.requestIP(req)?.address ?? "?";
+        if (srv.upgrade(req, { data: { ip } })) return;
+        return new Response("upgrade gerekli", { status: 400 });
+      }
+      if (url.pathname === "/health") return Response.json({ ok: true, chain: zcash.kind });
+      if (url.pathname === "/stats")
+        return Response.json({
+          ...db.stats(),
+          liveRooms: rooms.size,
+          chain: zcash.kind,
+          opsBalanceZat: await opsBalance(),
+          height: await zcash.height(),
+        });
+      return serveStatic(url.pathname);
+    },
+    websocket: {
+      maxPayloadLength: MAX_MSG_BYTES,
+      idleTimeout: 120,
+      async message(ws, raw) {
+        try {
+          await handle(ws, parseClientMsg(String(raw)));
+        } catch (e) {
+          const known = e instanceof EngineError || e instanceof ProtocolError;
+          if (!known) console.error("[ws] beklenmeyen hata:", e);
+          ws.send(JSON.stringify({ t: "error", e: known ? e.message : "sunucu hatası" }));
+        }
+      },
+      close(ws) {
+        if (ws.data.code) sockets.get(ws.data.code)?.delete(ws);
+      },
+    },
+  });
+
+  return { server, rooms, db, seals, zcash };
 }
 
-async function handle(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const parts = url.pathname.split("/").filter(Boolean);
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-
-  try {
-    // POST /room
-    if (req.method === "POST" && url.pathname === "/room") {
-      const room = await registry.create();
-      return json({ code: room.state.code, roomAddress: room.address });
-    }
-    // /room/:code/...
-    if (parts[0] === "room" && parts[1]) {
-      const room = registry.get(parts[1]);
-      const sub = parts[2];
-      if (req.method === "POST" && sub === "join") {
-        const body = (await req.json()) as { name?: string; tier?: number };
-        const name = (body.name ?? "").trim().replaceAll("'", "").slice(0, 24);
-        if (!name) throw new EngineError("isim gerekli");
-        const tier = ([1, 2, 3].includes(body.tier ?? 0) ? body.tier : 1) as Tier;
-        return json(await room.join(name, tier));
-      }
-      if (req.method === "POST" && sub === "start") {
-        room.start();
-        return json({ ok: true });
-      }
-      if (req.method === "GET" && sub === "state") {
-        return json(
-          statePayload(room, url.searchParams.get("token"), await zcash.height()),
-        );
-      }
-      if (req.method === "POST" && sub === "action") {
-        const body = (await req.json()) as {
-          token?: string;
-          type?: string;
-          target?: string;
-          txt?: string;
-        };
-        if (!body.token || !body.type) throw new EngineError("token ve type gerekli");
-        if (!["night", "vote", "gvote", "will", "skip"].includes(body.type))
-          throw new EngineError(`bilinmeyen aksiyon: ${body.type}`);
-        room.action(
-          body.token,
-          body.type as "night" | "vote" | "gvote" | "will" | "skip",
-          body.target,
-          body.txt,
-        );
-        return json({ ok: true });
-      }
-      if (req.method === "POST" && sub === "reveal") {
-        // Görüş anahtarı, tuzlar ve roller yalnız oyun bitince açılır; oda
-        // kodunu bilen herkes oyun ortasında gece hamlelerini okuyabiliyordu.
-        if (room.state.phase !== "END")
-          throw new EngineError("ifşa yalnız oyun bitince");
-        return json({
-          ufvk: room.ufvk,
-          roomAddress: room.address,
-          reveals: room.state.players.map((p) => ({
-            name: p.name,
-            tier: p.tier,
-            salt: p.tierSalt,
-            commit: p.tierCommit,
-            role: p.role,
-          })),
-          timeline: [
-            ...zcash.sealed(room.state.code).map((b) => ({
-              txid: b.txid,
-              at: b.at,
-              memos: b.events.map((e) => e.memo),
-            })),
-            // Kuyruktakiler de dökümde görünsün — oyun verisi zinciri
-            // BEKLEMEZ; mühür oturunca txid'si gelir (17 Ağu dersi).
-            ...(() => {
-              const pending = zcash.pendingEvents(room.state.code);
-              return pending.length > 0
-                ? [
-                    {
-                      txid: "mühürleniyor…",
-                      at: Date.now(),
-                      memos: pending.map((e) => e.memo),
-                    },
-                  ]
-                : [];
-            })(),
-          ],
-        });
-      }
-    }
-    // GET /qr.js — qrcode-generator'ı tarayıcı globali olarak sarmalayıp servis et
-    // (perde LOBBY'de katılım QR'ını kendisi çizer; link rotasyonuna bağışık).
-    if (req.method === "GET" && url.pathname === "/qr.js") {
-      if (!qrLibCache) {
-        const lib = await Bun.file(
-          "node_modules/qrcode-generator/dist/qrcode.js",
-        ).text();
-        qrLibCache = `(function(){var exports={};var module={exports:exports};\n${lib}\nwindow.qrcode=module.exports;})();`;
-      }
-      return new Response(qrLibCache, {
-        headers: { "Content-Type": "application/javascript" },
-      });
-    }
-    // GET / — karşılama: durum + uygulama/perde kapıları.
-    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
-      const hasApp = await Bun.file(`${WEB_DIR}/index.html`).exists();
-      return new Response(landingHtml(zcash.kind, hasApp), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    }
-    // GET /app/* — Flutter web build'i; telefonlar tarayıcıdan oynar.
-    // Service worker YOK (--pwa-strategy=none — eski sürüm inadı bitirildi,
-    // 17 Ağu). Değişken dosyalar (index + kök .js) hep taze; ağır ve
-    // build'ler arası sabit varlıklar (canvaskit, fontlar) bir gün önbellekli.
-    if (req.method === "GET" && parts[0] === "app") {
-      const rel = parts.slice(1).join("/") || "index.html";
-      const mutable =
-        parts.length <= 2 && (rel === "index.html" || rel.endsWith(".js") || rel.endsWith(".json"));
-      const cache = {
-        "Cache-Control": mutable ? "no-cache" : "public, max-age=86400",
-      };
-      const file = Bun.file(`${WEB_DIR}/${rel}`);
-      if (await file.exists()) return new Response(file, { headers: cache });
-      // SPA fallback: bilinmeyen yollar index.html'e düşer
-      const index = Bun.file(`${WEB_DIR}/index.html`);
-      if (await index.exists())
-        return new Response(index, {
-          headers: { "Cache-Control": "no-cache" },
-        });
-      return json({ error: "web build yok — mobile/build/web bekleniyor" }, 404);
-    }
-    // GET /screen/:code
-    if (req.method === "GET" && parts[0] === "screen" && parts[1]) {
-      registry.get(parts[1]); // 404 if unknown
-      return new Response(screenHtml(parts[1].toUpperCase()), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    }
-    // Son çare: Flutter build'i base href="/" ile geldiyse asset'ler kökten
-    // istenir — WEB_DIR'de birebir karşılığı olan dosyayı servis et.
-    if (req.method === "GET" && !url.pathname.includes("..")) {
-      const asset = Bun.file(`${WEB_DIR}${url.pathname}`);
-      if (await asset.exists()) return new Response(asset);
-    }
-    return json({ error: "yol yok" }, 404);
-  } catch (e) {
-    if (e instanceof EngineError) return json({ error: e.message }, 400);
-    console.error("[server]", e);
-    return json({ error: "sunucu hatası" }, 500);
-  }
+if (import.meta.main) {
+  const { server, zcash } = startServer();
+  console.log(`ZKöy http://localhost:${server.port} (zincir: ${zcash.kind})`);
+  const ops = process.env.ZKOY_OPS_ADDRESS;
+  if (zcash.kind === "zingo" && ops) startFaucetLoop(zcash, ops);
 }
-
-// Cüzdan üretimi/mühürleme anlarında istekler 10sn'lik varsayılan sınırı
-// aşabiliyor (17 Ağu: ECONNRESET'lerin bir kaynağı buydu) — payı geniş tut.
-Bun.serve({ port: PORT, fetch: handle, idleTimeout: 60 });
-console.log(
-  `ZKöy sunucu ayakta: http://localhost:${PORT} (zincir: ${zcash.kind})`,
-);

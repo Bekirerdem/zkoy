@@ -10,12 +10,21 @@ import {
   Phase,
   Player,
   Role,
+  RoomRules,
   RoomState,
   Winner,
 } from "./types";
 
 export const MIN_PLAYERS = 7;
 export const MAX_PLAYERS = 15;
+
+/** SPEC v3 §2.1 varsayılanları: gözcü 13+ oyuncuda, sanık oy kullanmaz. */
+export const DEFAULT_RULES: RoomRules = { gozcu: null, accusedVotes: false };
+
+/** Gözcü bu oyunda var mı (null = otomatik, 13+). */
+export function gozcuActive(rules: RoomRules, count: number): boolean {
+  return rules.gozcu ?? count >= 13;
+}
 
 export class EngineError extends Error {}
 
@@ -37,9 +46,9 @@ function alivePlayers(state: RoomState): Player[] {
   return state.players.filter((p) => p.alive);
 }
 
-/** SPEC §5: every memo carries v:2 and the room code. */
+/** SPEC v3 §9.3: every memo carries v:3 and the room code. */
 function memo(state: RoomState, body: Record<string, unknown>): Record<string, unknown> {
-  return { v: 2, g: state.code, ...body };
+  return { v: 3, g: state.code, ...body };
 }
 
 function freshDay(): DayState {
@@ -51,9 +60,10 @@ export function weightOf(state: RoomState, id: string): number {
   return state.muhtar === id ? state.muhtarWeight : 1;
 }
 
-export function createRoom(code: string): RoomState {
+export function createRoom(code: string, rules: Partial<RoomRules> = {}): RoomState {
   return {
     code,
+    rules: { ...DEFAULT_RULES, ...rules },
     phase: "LOBBY",
     round: 0,
     players: [],
@@ -86,9 +96,9 @@ export function join(state: RoomState, id: string, name: string): MemoEvent[] {
 }
 
 /** SPEC §1 composition table: vampir 1 (7-9), 2 (10-12), 3 (13-15); deli from 8. */
-export function rolePlan(count: number): Role[] {
+export function rolePlan(count: number, gozcu = true): Role[] {
   const vampires = count >= 13 ? 3 : count >= 10 ? 2 : 1;
-  const roles: Role[] = ["doktor", "gozcu"];
+  const roles: Role[] = gozcu ? ["doktor", "gozcu"] : ["doktor"];
   for (let i = 0; i < vampires; i++) roles.push("vampir");
   if (count >= 8) roles.push("deli");
   while (roles.length < count) roles.push("koylu");
@@ -126,7 +136,10 @@ export function start(
     throw new EngineError(`en az ${minPlayers} oyuncu gerek`);
   if (!seedCommit) throw new EngineError("kura taahhüdü zorunlu");
   const rng = mulberry32(seed);
-  const roles = rolePlan(state.players.length);
+  const roles = rolePlan(
+    state.players.length,
+    gozcuActive(state.rules, state.players.length),
+  );
   for (let i = roles.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [roles[i], roles[j]] = [roles[j]!, roles[i]!];
@@ -430,6 +443,8 @@ function verdictTally(state: RoomState) {
   let notGuiltyW = 0;
   let pending = 0;
   for (const p of alivePlayers(state)) {
+    // SPEC v3 §2.1: sanık oy kullanmıyorsa yarı hesabı onsuz yapılır.
+    if (!state.rules.accusedVotes && p.id === trial.accused) continue;
     const w = weightOf(state, p.id);
     total += w;
     const v = trial.verdicts[p.id];
@@ -447,6 +462,8 @@ export function castVerdict(state: RoomState, voterId: string, guilty: boolean):
   if (!trial || state.day.stage !== "verdict") throw new EngineError("karar oyu açık değil");
   const voter = player(state, voterId);
   if (!voter.alive) throw new EngineError("ölüler oy atamaz");
+  if (!state.rules.accusedVotes && voterId === trial.accused)
+    throw new EngineError("sanık kendi davasında oy kullanmaz");
   trial.verdicts[voterId] = guilty;
   const events: MemoEvent[] = [
     {

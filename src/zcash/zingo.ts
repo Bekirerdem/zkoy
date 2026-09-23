@@ -12,7 +12,7 @@
 import { homedir } from "node:os";
 import { join as joinPath } from "node:path";
 import { MemoEvent } from "../engine/types";
-import { RoomWallet, SealedMemo, ZcashService } from "./service";
+import { RoomWallet, ZcashService } from "./service";
 
 // Defaults follow the workstation layout (repo next to zcash-camp, wallets in
 // the home dir); every one of them is overridable by env for the VPS.
@@ -32,7 +32,22 @@ const OPS_DIR = process.env.ZKOY_OPS_DIR ?? joinPath(homedir(), ".zingo-testnet"
 const WALLETS_ROOT =
   process.env.ZKOY_WALLETS_ROOT ?? joinPath(homedir(), ".zkoy-wallets");
 const SERVER = process.env.ZKOY_LWD ?? "https://testnet.zec.rocks:443";
+const NET = process.env.ZKOY_NET ?? "testnet";
 const DUST_ZATS = 10_000;
+
+/**
+ * `balance` prints `confirmed_<pool>_balance: 215_000` lines, not JSON.
+ * Spendable = confirmed shielded pools (ironwood, orchard, sapling).
+ */
+export function parseShieldedBalance(text: string): number | null {
+  let total = 0;
+  let found = false;
+  for (const m of text.matchAll(/confirmed_(ironwood|orchard|sapling)_balance:\s*([\d_]+)/g)) {
+    total += Number(m[2]!.replaceAll("_", ""));
+    found = true;
+  }
+  return found ? total : null;
+}
 
 /** Extract the last balanced top-level JSON value from noisy CLI output. */
 export function extractLastJson(out: string): unknown {
@@ -85,7 +100,7 @@ async function withWalletLock<T>(dir: string, fn: () => Promise<T>): Promise<T> 
 async function runOffline(dataDir: string, cmd: string[]): Promise<unknown> {
   return withWalletLock(dataDir, async () => {
     const p = Bun.spawn(
-      [ZINGO, "--chain", "testnet", "--data-dir", dataDir, "--offline", ...cmd],
+      [ZINGO, "--chain", NET, "--data-dir", dataDir, "--offline", ...cmd],
       { stdout: "pipe", stderr: "pipe" },
     );
     const out = await new Response(p.stdout).text();
@@ -112,7 +127,7 @@ async function runOnlineSession(
 ): Promise<string> {
   return withWalletLock(dataDir, async () => {
     const p = Bun.spawn(
-      [ZINGO, "--chain", "testnet", "--server", SERVER, "--data-dir", dataDir],
+      [ZINGO, "--chain", NET, "--server", SERVER, "--data-dir", dataDir],
       {
         stdin: "pipe",
         stdout: "pipe",
@@ -160,11 +175,6 @@ async function runOnlineSession(
   });
 }
 
-interface PendingSeal {
-  code: string;
-  events: MemoEvent[];
-}
-
 export class ZingoService implements ZcashService {
   readonly kind = "zingo" as const;
 
@@ -175,15 +185,12 @@ export class ZingoService implements ZcashService {
   }
   private rooms = new Map<string, RoomWallet>();
   private playerAddrs = new Map<string, string>(); // `${code}/${playerId}` → UA
-  private log = new Map<string, SealedMemo[]>();
-  private pending: PendingSeal[] = [];
-  private flushing = false;
 
   private roomDir(code: string): string {
-    return `${WALLETS_ROOT}\\${code}\\room`;
+    return joinPath(WALLETS_ROOT, code, "room");
   }
   private playerDir(code: string, playerId: string): string {
-    return `${WALLETS_ROOT}\\${code}\\players\\${playerId}`;
+    return joinPath(WALLETS_ROOT, code, "players", playerId);
   }
 
   private async walletAddress(dataDir: string): Promise<string> {
@@ -217,58 +224,43 @@ export class ZingoService implements ZcashService {
     return ua;
   }
 
-  seal(code: string, events: MemoEvent[]): void {
-    if (events.length === 0) return;
-    this.pending.push({ code, events });
-    void this.flush();
-  }
-
-  sealed(code: string): SealedMemo[] {
-    return this.log.get(code) ?? [];
-  }
-
-  pendingEvents(code: string): MemoEvent[] {
-    return this.pending
-      .filter((p) => p.code === code)
-      .flatMap((p) => p.events);
-  }
-
-  /** Drain the queue: one multi-receiver quicksend per room batch, retried. */
-  private async flush(): Promise<void> {
-    if (this.flushing) return;
-    this.flushing = true;
+  /** One multi-receiver quicksend; the server's SealQueue retries on throw. */
+  async send(code: string, events: MemoEvent[]): Promise<string> {
     try {
-      while (this.pending.length > 0) {
-        const code = this.pending[0]!.code;
-        const batch = this.pending.filter((p) => p.code === code);
-        this.pending = this.pending.filter((p) => p.code !== code);
-        const events = batch.flatMap((b) => b.events);
+      return await this.sendBatch(code, events);
+    } catch (e) {
+      // Süresi dolmuş imzalı tx cüzdanda takılı kalır: notları rehin tutar
+      // ("have 0") ve her denemede yeniden gönderilir (asla geçemez).
+      // Tespit edince söküyoruz — kuyruk kendini iyileştirir (17 Ağu dersi).
+      const msg = String(e);
+      const stuck = msg.match(/transaction::Hash\("([0-9a-f]{64})"\)/);
+      if (stuck && /expiry Height/.test(msg)) {
         try {
-          const txid = await this.sendBatch(code, events);
-          const list = this.log.get(code) ?? [];
-          list.push({ txid, events, at: Date.now() });
-          this.log.set(code, list);
-        } catch (e) {
-          const msg = String(e);
-          console.error(`[zingo] seal failed for ${code}, requeueing:`, e);
-          // Süresi dolmuş imzalı tx cüzdanda takılı kalır: notları rehin tutar
-          // ("have 0") ve her denemede yeniden gönderilir (asla geçemez).
-          // Tespit edince söküyoruz — kuyruk kendini iyileştirir (17 Ağu dersi).
-          const stuck = msg.match(/transaction::Hash\("([0-9a-f]{64})"\)/);
-          if (stuck && /expiry Height/.test(msg)) {
-            try {
-              await runOffline(OPS_DIR, ["remove_transaction", stuck[1]!]);
-              console.error(`[zingo] süresi dolmuş tx söküldü: ${stuck[1]}`);
-            } catch (re) {
-              console.error("[zingo] remove_transaction başarısız:", re);
-            }
-          }
-          this.pending.push({ code, events });
-          await new Promise((r) => setTimeout(r, 15_000));
+          await runOffline(OPS_DIR, ["remove_transaction", stuck[1]!]);
+          console.error(`[zingo] süresi dolmuş tx söküldü: ${stuck[1]}`);
+        } catch (re) {
+          console.error("[zingo] remove_transaction başarısız:", re);
         }
       }
-    } finally {
-      this.flushing = false;
+      throw e;
+    }
+  }
+
+  /** Ops wallet spendable zatoshis (offline read of the last synced state). */
+  async balance(): Promise<number | null> {
+    try {
+      const text = await withWalletLock(OPS_DIR, async () => {
+        const p = Bun.spawn(
+          [ZINGO, "--chain", NET, "--data-dir", OPS_DIR, "--offline", "balance"],
+          { stdout: "pipe", stderr: "pipe" },
+        );
+        const out = await new Response(p.stdout).text();
+        await p.exited;
+        return out;
+      });
+      return parseShieldedBalance(text);
+    } catch {
+      return null;
     }
   }
 
@@ -328,7 +320,7 @@ export class ZingoService implements ZcashService {
         [
           ZINGO,
           "--chain",
-          "testnet",
+          NET,
           "--server",
           SERVER,
           "--data-dir",

@@ -91,8 +91,17 @@ export interface MemoEvent {
   zats?: number;
 }
 
+/** SPEC v3 §2.1 oda kuralları; kurucu oda kurarken seçer. */
+export interface RoomRules {
+  /** Gözcü rolü; null = otomatik (13+ oyuncuda var). */
+  gozcu: boolean | null;
+  /** Sanık kendi davasında oy kullanır mı (varsayılan hayır). */
+  accusedVotes: boolean;
+}
+
 export interface RoomState {
   code: string;
+  rules: RoomRules;
   phase: Phase;
   round: number;
   players: Player[];

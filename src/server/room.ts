@@ -37,12 +37,13 @@ function randomInt(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0]! >>> 1;
 }
 
-const ROLE_TR: Record<Role, string> = {
-  vampir: "vampir",
-  koylu: "köylü",
-  doktor: "doktor",
-  gozcu: "gözcü",
-  deli: "deli",
+/** "O bir ___" — ünlü uyumu elle, ek üretimi yok. */
+const ROLE_WAS: Record<Role, string> = {
+  vampir: "vampirdi",
+  koylu: "köylüydü",
+  doktor: "doktordu",
+  gozcu: "gözcüydü",
+  deli: "deliydi",
 };
 
 export interface RoomDeps {
@@ -333,7 +334,7 @@ export class Room {
     if (ln.gozcuResult && gozcu) this.gozcuLog.push({ round: ln.round, ...ln.gozcuResult });
     if (ln.died) {
       const dead = s.players.find((p) => p.id === ln.died)!;
-      this.announce("dawn", `Sabah ${dead.name} ölü bulundu. O bir ${ROLE_TR[dead.role!]}ydı.`, dead.will);
+      this.announce("dawn", `Sabah ${dead.name} ölü bulundu. O bir ${ROLE_WAS[dead.role!]}.`, dead.will);
     } else {
       this.announce("dawn", ln.saved ? "Gece saldırı oldu ama doktor yetişti. Kimse ölmedi." : "Sessiz bir gece. Kimse ölmedi.");
     }
@@ -347,7 +348,7 @@ export class Room {
     if (v.lynched)
       this.announce(
         "verdict",
-        `${accused.name} asıldı (${v.guilty}-${v.notGuilty}). O bir ${ROLE_TR[accused.role!]}ydı.`,
+        `${accused.name} asıldı (${v.guilty}-${v.notGuilty}). O bir ${ROLE_WAS[accused.role!]}.`,
         accused.will,
       );
     else this.announce("verdict", `${accused.name} beraat etti (${v.guilty}-${v.notGuilty}).`);

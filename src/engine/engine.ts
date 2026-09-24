@@ -19,7 +19,18 @@ export const MIN_PLAYERS = 7;
 export const MAX_PLAYERS = 15;
 
 /** SPEC v3 §2.1 varsayılanları: gözcü 13+ oyuncuda, sanık oy kullanmaz. */
-export const DEFAULT_RULES: RoomRules = { gozcu: null, accusedVotes: false };
+export const DEFAULT_RULES: RoomRules = { gozcu: null, accusedVotes: false, trialSupport: null };
+
+/**
+ * Dava eşiği (Bekir, 25 Eyl: iki kişiyle dava açılmasın). Otomatik:
+ * max(3, ⌈yaşayan/3⌉), ama sanık dışındaki kişi sayısını geçemez.
+ * 4-9 yaşayan → 3 · 10-12 → 4 · 13-15 → 5.
+ */
+export function trialNeed(state: RoomState): number {
+  const alive = state.players.filter((p) => p.alive).length;
+  if (state.rules.trialSupport !== null) return state.rules.trialSupport;
+  return Math.min(Math.max(3, Math.ceil(alive / 3)), Math.max(1, alive - 1));
+}
 
 /** Gözcü bu oyunda var mı (null = otomatik, 13+). */
 export function gozcuActive(rules: RoomRules, count: number): boolean {
@@ -52,7 +63,7 @@ function memo(state: RoomState, body: Record<string, unknown>): Record<string, u
 }
 
 function freshDay(): DayState {
-  return { stage: "free", accusations: {}, trial: null, triedToday: [] };
+  return { stage: "free", accusations: {}, backers: {}, trial: null, triedToday: [] };
 }
 
 /** Muhtar's vote counts muhtarWeight; everyone else 1. */
@@ -397,8 +408,49 @@ export function accuse(state: RoomState, accuserId: string, accusedId: string): 
   if (state.day.triedToday.includes(accusedId))
     throw new EngineError("bugün zaten yargılandı");
   state.day.accusations[accuserId] = accusedId;
+  back(state, accuserId, accusedId);
   return [
     { to: "room", memo: memo(state, { t: "accuse", r: state.round, p: accuserId, x: accusedId }) },
+    ...maybeOpenTrial(state, accusedId),
+  ];
+}
+
+/** Bir oyuncu aynı anda tek kişiyi destekler: önceki desteğini geri çeker. */
+function back(state: RoomState, who: string, accusedId: string) {
+  for (const [target, list] of Object.entries(state.day.backers)) {
+    const rest = list.filter((id) => id !== who);
+    if (rest.length === 0) delete state.day.backers[target];
+    else state.day.backers[target] = rest;
+  }
+  for (const [accuser, target] of Object.entries(state.day.accusations))
+    if (accuser !== who && !state.day.backers[target]) delete state.day.accusations[accuser];
+  if (state.day.accusations[who] !== undefined && state.day.accusations[who] !== accusedId)
+    delete state.day.accusations[who];
+  state.day.backers[accusedId] = [...(state.day.backers[accusedId] ?? []), who];
+}
+
+/** Destek ağırlığı (Muhtar'ın oyu kadar sayılır). */
+export function supportWeight(state: RoomState, accusedId: string): number {
+  return (state.day.backers[accusedId] ?? []).reduce((n, id) => n + weightOf(state, id), 0);
+}
+
+/** Eşik aşıldıysa davayı aç (savunma aşaması). */
+function maybeOpenTrial(state: RoomState, accusedId: string): MemoEvent[] {
+  const backers = state.day.backers[accusedId] ?? [];
+  const weight = supportWeight(state, accusedId);
+  if (weight < trialNeed(state)) return [];
+  state.day.trial = {
+    accused: accusedId,
+    accuser: backers[0]!,
+    seconder: backers[1] ?? backers[0]!,
+    backers: [...backers],
+    verdicts: {},
+  };
+  state.day.stage = "trial";
+  state.day.accusations = {};
+  state.day.backers = {};
+  return [
+    { to: "room", memo: memo(state, { t: "trial", r: state.round, x: accusedId, by: backers, n: weight }) },
   ];
 }
 
@@ -408,15 +460,13 @@ export function second(state: RoomState, seconderId: string, accusedId: string):
   const seconder = player(state, seconderId);
   if (!seconder.alive) throw new EngineError("ölüler destekleyemez");
   if (seconderId === accusedId) throw new EngineError("kendini destekleyemezsin");
-  const found = Object.entries(state.day.accusations).find(
-    ([who, target]) => target === accusedId && who !== seconderId,
-  );
-  if (!found) throw new EngineError("ortada suçlama yok");
-  state.day.trial = { accused: accusedId, accuser: found[0], seconder: seconderId, verdicts: {} };
-  state.day.stage = "trial";
-  state.day.accusations = {};
+  const list = state.day.backers[accusedId] ?? [];
+  if (list.length === 0) throw new EngineError("ortada suçlama yok");
+  if (list.includes(seconderId)) throw new EngineError("zaten destekliyorsun");
+  back(state, seconderId, accusedId);
   return [
     { to: "room", memo: memo(state, { t: "second", r: state.round, p: seconderId, x: accusedId }) },
+    ...maybeOpenTrial(state, accusedId),
   ];
 }
 

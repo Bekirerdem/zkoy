@@ -27,7 +27,7 @@ import {
   setWill,
 } from "../src/engine/engine";
 import { MemoEvent, RoomState } from "../src/engine/types";
-import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay } from "./helpers";
+import { makeRoom, byRole, dealt, electMuhtar, inNight, inDay, bringToTrial } from "./helpers";
 
 /** Reads the phase through a call so TS control-flow narrowing does not freeze it mid-loop. */
 function phaseOf(state: RoomState) {
@@ -69,10 +69,7 @@ describe("will + envelope + replay", () => {
         );
         const alive = state.players.filter((p) => p.alive).map((p) => p.id);
         const target = vampAlive ?? alive[alive.length - 1]!;
-        const accuser = alive.find((id) => id !== target)!;
-        const seconder = alive.find((id) => id !== target && id !== accuser)!;
-        all.push(...accuse(state, accuser, target));
-        all.push(...second(state, seconder, target));
+        all.push(...bringToTrial(state, target));
         all.push(...openVerdict(state, null, { force: true, by: "host" }));
         for (const id of alive)
           if (id !== target && state.day.stage === "verdict")
@@ -100,10 +97,7 @@ function closeDayForTest(state: RoomState) {
 /** Lynch `target` today with everyone alive voting guilty (verdict forced open by the host). */
 function lynchToday(state: RoomState, target: string) {
   const alive = state.players.filter((p) => p.alive).map((p) => p.id);
-  const accuser = alive.find((id) => id !== target)!;
-  const seconder = alive.find((id) => id !== target && id !== accuser)!;
-  accuse(state, accuser, target);
-  second(state, seconder, target);
+  bringToTrial(state, target);
   openVerdict(state, null, { force: true, by: "host" });
   for (const id of alive) if (state.day.stage === "verdict") castVerdict(state, id, true);
 }
@@ -180,10 +174,7 @@ describe("ghosts, badges, win", () => {
     state.seedSalt = "tuz";
     const [vampir] = byRole(state, "vampir");
     const alive = state.players.filter((p) => p.alive).map((p) => p.id);
-    const accuser = alive.find((id) => id !== vampir)!;
-    const seconder = alive.find((id) => id !== vampir && id !== accuser)!;
-    accuse(state, accuser, vampir!);
-    second(state, seconder, vampir!);
+    bringToTrial(state, vampir!);
     openVerdict(state, null, { force: true });
     let events: ReturnType<typeof castVerdict> = [];
     for (const id of alive) if (state.day.stage === "verdict") events = castVerdict(state, id, true);

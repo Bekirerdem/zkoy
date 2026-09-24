@@ -7,8 +7,10 @@ import {
   resolveElection,
   resolveNight,
   startDay,
+  accuse,
+  second,
 } from "../src/engine/engine";
-import { Role, RoomRules, RoomState } from "../src/engine/types";
+import { MemoEvent, Role, RoomRules, RoomState } from "../src/engine/types";
 
 /** NIGHT round 1 with nobody acting → DAWN → DAY (quiet night). */
 export function inDay(n: number, seed = 42): RoomState {
@@ -33,12 +35,26 @@ export function inNight(n: number, seed = 42): RoomState {
 }
 
 /** v2 kural seti: gözcü her zaman, sanık oy kullanır (eski testlerin varsayımı). */
-export const V2_RULES = { gozcu: true, accusedVotes: true };
+export const V2_RULES = { gozcu: true, accusedVotes: true, trialSupport: 2 };
 
 export function makeRoom(n: number, rules: Partial<RoomRules> = V2_RULES): RoomState {
   const state = createRoom("TEST", rules);
   for (let i = 0; i < n; i++) join(state, `p${i}`, `oyuncu${i}`);
   return state;
+}
+
+/**
+ * Dava eşiğine kadar destek topla: ilk yaşayan suçlar, sonrakiler destekler.
+ * Muhtar'ın ağırlığı ve otomatik eşik motorun kuralıyla sayılır.
+ */
+export function bringToTrial(state: RoomState, target: string, skip: string[] = []): MemoEvent[] {
+  const events: MemoEvent[] = [];
+  for (const p of state.players) {
+    if (state.day.stage !== "free") break;
+    if (!p.alive || p.id === target || skip.includes(p.id)) continue;
+    events.push(...(state.day.backers[target] ? second(state, p.id, target) : accuse(state, p.id, target)));
+  }
+  return events;
 }
 
 export function byRole(state: RoomState, role: Role): string[] {

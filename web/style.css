@@ -158,6 +158,9 @@ body.day.dawn { background: linear-gradient(180deg, #F6D98A 0%, #FAF7EF 38%) fix
 /* ── meydan ── */
 .callout { border-radius: 16px; background: #1C1B29; color: #FAF7EF; padding: 16px; display: flex; align-items: center; gap: 12px; }
 .callout small { display: block; font-size: 12px; letter-spacing: 0.06em; color: #C9C4DB; }
+.meter-sm { display: block; height: 6px; border-radius: 3px; background: #3A3556; overflow: hidden; }
+.meter-sm > span { display: block; height: 6px; background: var(--gold); transition: width 400ms var(--land); }
+.callout .mine { font-size: 13px; color: #F4B728; font-weight: 600; white-space: nowrap; }
 .callout button { min-height: 48px; padding: 0 18px; border-radius: 12px; background: var(--gold); color: var(--gold-ink); font-weight: 600; }
 .rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .row { min-height: 56px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }

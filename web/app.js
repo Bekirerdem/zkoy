@@ -61,7 +61,7 @@ const ROLE = {
 const RULES = [
   { theme: "night", title: "Kim kimdir?", lead: "Rolünü yalnız sen bilirsin. Masadakiler tahmin eder.", roles: true },
   { theme: "night rule-night", big: "gece", title: "Herkes gözünü kapatır.", lines: [["Vampirler", "bir kurban seçer.", "#F2D9D5"], ["Doktor", "birini korur.", "#D7F0E6"], ["Gözcü", "birine bakar.", "#E1DBFA"]], foot: "Hepsi telefondan, sessizce. Rolü olmayanın ekranında yalnız “Köy uyuyor” yazar; kimin hamle yaptığını ekrandan kimse anlayamaz." },
-  { theme: "day", title: "Gündüz dava kurulur.", steps: [["Suçla.", "Şüphelendiğin kişiye dokun."], ["Destek gelsin.", "Biri daha desteklerse dava açılır."], ["Savunma.", "Sanık konuşur, kimse sözünü kesmez."], ["Açık oy.", "Assın ya da asmasın. Oylar herkesin ekranında."], ["Yarıyı geçerse asılır", "ve rolü açıklanır. Geçmezse beraat eder, o gün bir daha yargılanmaz."]], foot: "Sanık kendi davasında oy kullanmaz. Gün bitince Muhtar geceye geçirir." },
+  { theme: "day", title: "Gündüz dava kurulur.", steps: [["Suçla.", "Şüphelendiğin kişiye dokun."], ["Destek topla.", "En az 3 kişi desteklerse dava açılır (büyük masada 4-5). Muhtar'ın desteği 2 sayılır."], ["Savunma.", "Sanık konuşur, kimse sözünü kesmez."], ["Açık oy.", "Assın ya da asmasın. Oylar herkesin ekranında."], ["Yarıyı geçerse asılır", "ve rolü açıklanır. Geçmezse beraat eder, o gün bir daha yargılanmaz."]], foot: "Sanık kendi davasında oy kullanmaz. Gün bitince Muhtar geceye geçirir." },
   { theme: "day dawn", badge: "Muhtar ×2", title: "Köyün bir Muhtarı var.", lines: [["", "Oyunun başında seçilir. Aday çıkmazsa kura çekilir."], ["", "Davada oyu iki sayılır (13 ve üstü oyuncuda üç)."], ["", "Günü yönetir: güne geçer, oylamayı açar, günü kapatır."], ["", "Ölürse makamı birine bırakır."]], foot: "Muhtar bir makam, rol değil. Vampir de Muhtar olabilir." },
   { theme: "night end", title: "Kim kazanır?", win: true },
 ];
@@ -259,7 +259,7 @@ function viewEbe(e) {
         h("h1", { class: "ebe-title" }, mine ? "Dava sana açıldı." : `${nameOf(t.accused)} yargılanıyor.`),
         h("div", { class: "will" },
           h("div", { class: "kv" }, h("span", { class: "muted" }, "Suçlayan"), h("b", {}, nameOf(t.accuser))),
-          h("div", { class: "kv" }, h("span", { class: "muted" }, "Destekleyen"), h("b", {}, nameOf(t.seconder)))),
+          h("div", { class: "kv" }, h("span", { class: "muted" }, "Destekleyenler"), h("b", { style: "text-align:right" }, (t.backers || [t.seconder]).filter((b) => b !== t.accuser).map(nameOf).join(", ")))),
         h("p", { style: "font-size:18px" }, mine
           ? "Şimdi sen konuşuyorsun. Masaya kendini savun; bitince “Savunmam bitti”ye bas, oylama açılsın."
           : `Şimdi ${nameOf(t.accused)} konuşuyor. Sözünü kesmeyin. Savunması bitince ya da Muhtar derse oylama açılır.`)),
@@ -589,19 +589,27 @@ function heirPicker() {
 function viewDay() {
   const d = s.day;
   if (d.stage === "trial" || d.stage === "verdict") return viewTrial();
-  const pending = Object.entries(d.accusations);
-  const open = pending.find(([who, x]) => who !== m.pid && x !== m.pid);
+  // suçlanan → destekleyenler (ilki suçlayan); eşik `need`, Muhtar desteği oyu kadar.
+  const pending = Object.entries(d.backers || {});
+  const mine = pending.find(([, list]) => list.includes(m.pid));
   return {
     theme: "day",
     el: h("section", { class: "screen" },
       h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${s.round}. gün · meydan`), h("span", { style: "display:flex;gap:10px;align-items:center" }, bar("").lastChild, cardButton())),
       h("h1", {}, m.alive ? "Kimden şüpheleniyorsun?" : "Hayaletsin. Kim asılacak?"),
-      pending.length > 0 && h("div", { class: "stack" }, pending.map(([who, x]) =>
-        h("div", { class: "callout" },
-          h("span", { style: "flex-grow:1" }, h("small", {}, "SUÇLAMA · DESTEK BEKLİYOR"), h("span", { style: "font-size:17px" }, h("b", {}, nameOf(who)), " → ", h("b", { style: "color:#F4B728" }, nameOf(x)))),
-          m.can.includes("second") && who !== m.pid && x !== m.pid && h("button", { onclick: () => act("second", { x }) }, "Destekle")))),
+      pending.length > 0 && h("div", { class: "stack" }, pending.map(([x, list]) => {
+        const got = (d.support || {})[x] || list.length;
+        const imIn = list.includes(m.pid);
+        return h("div", { class: "callout" },
+          h("span", { style: "flex-grow:1;display:flex;flex-direction:column;gap:6px" },
+            h("small", {}, `SUÇLAMA · ${got}/${d.need} DESTEK`),
+            h("span", { style: "font-size:17px" }, h("b", { style: "color:#F4B728" }, nameOf(x)), h("span", { style: "color:#C9C4DB" }, ` · ${list.map(nameOf).join(", ")}`)),
+            h("span", { class: "meter-sm" }, h("span", { style: `width:${Math.min(100, Math.round((got / d.need) * 100))}%` }))),
+          imIn ? h("span", { class: "mine" }, "Destekliyorsun")
+            : m.can.includes("second") && x !== m.pid && h("button", { onclick: () => act("second", { x }) }, "Destekle"));
+      })),
       h("div", { class: "rows" }, s.players.map((p) => {
-        const accused = Object.values(d.accusations).includes(p.id);
+        const accused = !!(d.backers || {})[p.id];
         const canAccuse = m.can.includes("accuse") && p.alive && p.id !== m.pid && !d.triedToday.includes(p.id);
         const canProphecy = m.can.includes("gvote") && p.alive;
         return h("div", { class: `row${p.alive ? "" : " dead"}` },
@@ -614,7 +622,9 @@ function viewDay() {
           canAccuse && h("button", { onclick: () => act("accuse", { x: p.id }) }, "Suçla"),
           canProphecy && h("button", { onclick: () => act("gvote", { x: p.id }) }, m.myProphecy === p.id ? "Kehanetim ✓" : "Kehanet"));
       })),
-      !open && pending.length === 0 && h("p", { class: "muted" }, "Birini suçla; biri daha desteklerse dava açılır."),
+      h("p", { class: "muted" }, mine
+        ? `Desteğin ${nameOf(mine[0])} üzerinde. Başkasını suçlarsan ya da desteklersen desteğin oraya geçer.`
+        : `Birini suçla. Destek ${d.need}'e ulaşınca dava açılır; Muhtar'ın desteği ${s.muhtarWeight} sayılır.`),
       h("div", { class: "stack push" },
         m.can.includes("will") && willBox(),
         m.can.includes("closeDay") && h("button", { class: "btn", onclick: () => cmd("closeDay") }, "Günü kapat, geceye geç"))),
@@ -631,7 +641,8 @@ function viewTrial() {
   const need = Math.floor(total / 2) + 1;
   const mine = t.verdicts[m.pid];
   const isAccused = m.pid === t.accused;
-  const header = h("span", { class: "muted" }, `${nameOf(t.accuser)} suçladı · ${nameOf(t.seconder)} destekledi`);
+  const supporters = (t.backers || [t.seconder]).filter((b) => b !== t.accuser).map(nameOf).join(", ");
+  const header = h("span", { class: "muted" }, `${nameOf(t.accuser)} suçladı · destek: ${supporters}`);
   let main;
   if (s.day.stage === "trial") {
     main = h("div", { class: "dawn-hero" },

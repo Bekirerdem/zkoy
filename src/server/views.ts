@@ -2,7 +2,7 @@
 // Kural: roller yalnız ölüye, END'de herkese ve vampire takım arkadaşı olarak
 // açılır; gözcü sonucu yalnız gözcüye; hayalet kehanetleri gizli.
 
-import { weightOf } from "../engine/engine";
+import { supportWeight, trialNeed, weightOf } from "../engine/engine";
 import { Role } from "../engine/types";
 import { CmdKind } from "./protocol";
 import { NIGHT_FORCE_MS, Room, sha256Hex } from "./room";
@@ -47,6 +47,10 @@ export function publicView(room: Room, seals: SealQueue, chain: string) {
     day: {
       stage: s.day.stage,
       accusations: s.day.accusations,
+      /** suçlanan → destekleyenler (ilki suçlayan) ve toplam ağırlık; eşik `need`. */
+      backers: s.day.backers,
+      support: Object.fromEntries(Object.keys(s.day.backers).map((x) => [x, supportWeight(s, x)])),
+      need: trialNeed(s),
       trial: s.day.trial,
       triedToday: s.day.triedToday,
       weights: s.day.trial
@@ -148,7 +152,7 @@ function allowed(room: Room, pid: string): Can[] {
       if (!me.alive) can.push("gvote");
       if (s.day.stage === "free" && me.alive) {
         can.push("accuse");
-        if (Object.keys(s.day.accusations).length > 0) can.push("second");
+        if (Object.entries(s.day.backers).some(([x, list]) => x !== pid && !list.includes(pid))) can.push("second");
       }
       if (s.day.stage === "free" && leader) can.push("closeDay");
       if (s.day.stage === "trial" && trial?.accused === pid) can.push("done");

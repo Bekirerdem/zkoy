@@ -48,7 +48,7 @@ async function playOut(room: Room, host: string) {
       const target = liv.find((id) => roleOf(room, id) === "vampir")!;
       const others = liv.filter((id) => id !== target);
       room.act(others[0]!, { t: "act", a: "accuse", x: target });
-      room.act(others[1]!, { t: "act", a: "second", x: target });
+      for (const id of others.slice(1)) if (s.day.stage === "free") room.act(id, { t: "act", a: "second", x: target });
       room.act(target, { t: "act", a: "done" });
       for (const id of others) if (s.day.stage === "verdict") room.act(id, { t: "act", a: "verdict", y: true });
     } else if (s.phase === "EXECUTION") {
@@ -111,6 +111,8 @@ describe("Room", () => {
     room.cmd(pids[2]!, { t: "cmd", c: "startDay" });
     room.act(pids[3]!, { t: "act", a: "accuse", x: pids[4]! });
     room.act(pids[5]!, { t: "act", a: "second", x: pids[4]! });
+    expect(room.state.day.stage).toBe("free"); // 2 destek yetmez (eşik 3)
+    room.act(pids[6]!, { t: "act", a: "second", x: pids[4]! });
     expect(room.state.day.stage).toBe("trial");
     expect(() => room.cmd(plain === pids[4] ? pids[6]! : plain, { t: "cmd", c: "closeDay" })).toThrow();
     room.act(pids[4]!, { t: "act", a: "done" });

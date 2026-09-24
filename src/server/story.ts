@@ -139,9 +139,14 @@ export function buildStory(
         day().lines.push({ text: `${name(m.p)}, ${accusative(name(m.x))} suçladı.`, sealed });
         break;
       case "second":
-        day().lines.push({ text: `${name(m.p)} destekledi: ${name(m.x)} yargılandı.`, sealed });
+        day().lines.push({ text: `${name(m.p)} suçlamayı destekledi (${name(m.x)}).`, sealed });
+        break;
+      case "trial": {
+        const by = Array.isArray(m.by) ? (m.by as unknown[]).map(name).join(", ") : "";
+        day().lines.push({ text: `Dava açıldı: ${name(m.x)} yargılandı${by ? ` (destek: ${by})` : ""}.`, sealed });
         trial = { round: r, accused: String(m.x), votes: new Map(), sealed: true };
         break;
+      }
       case "verdict":
         if (trial) {
           trial.votes.set(String(m.p), !!m.y);

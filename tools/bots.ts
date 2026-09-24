@@ -67,11 +67,12 @@ function bot(i: number) {
       if (d.stage === "verdict" && can.includes("verdict") && d.trial && d.trial.verdicts[me.pid] === undefined)
         return act({ t: "act", a: "verdict", y: Math.random() < 0.6 });
       if (d.stage === "trial" && can.includes("done")) return act({ t: "act", a: "done" });
-      if (d.stage === "free" && can.includes("second")) {
-        const open = Object.entries(d.accusations).find(([who, x]) => who !== me.pid && x !== me.pid);
-        if (open && Math.random() < 0.5) return act({ t: "act", a: "second", x: open[1] });
+      const backing = Object.values(d.backers as Record<string, string[]>).some((l) => l.includes(me.pid));
+      if (d.stage === "free" && can.includes("second") && !backing) {
+        const open = Object.entries(d.backers as Record<string, string[]>).find(([x, l]) => x !== me.pid && !l.includes(me.pid));
+        if (open && Math.random() < 0.5) return act({ t: "act", a: "second", x: open[0] });
       }
-      if (d.stage === "free" && inPhase >= DAY_QUIET_MS && can.includes("accuse") && !d.accusations[me.pid] && Math.random() < 0.15) {
+      if (d.stage === "free" && inPhase >= DAY_QUIET_MS && can.includes("accuse") && !backing && Math.random() < 0.15) {
         const target = pick(alive.filter((id: string) => !d.triedToday.includes(id)));
         if (target) return act({ t: "act", a: "accuse", x: target });
       }

@@ -29,8 +29,10 @@
 | `nominate` | ELECTION | — | yaşayan, kendini aday gösterir |
 | `mvote` | ELECTION | `x` aday id | yaşayan; herkes oy verince seçim kendiliğinden biter |
 | `night` | NIGHT | `x` hedef | vampir (kurban), doktor (koruma, kendisi olabilir), gözcü (sorgu); hepsi seçince gece kendiliğinden biter |
-| `accuse` | DAY (free) | `x` | yaşayan |
-| `second` | DAY (free) | `x` suçlanan | başka bir yaşayan destekler → dava açılır (trial) |
+| `accuse` | DAY (free) | `x` | yaşayan; suçlayan da destekçi sayılır |
+| `second` | DAY (free) | `x` suçlanan | başka bir yaşayan destekler; destek ağırlığı `day.need`'e ulaşınca dava açılır (trial) |
+
+**Dava eşiği:** destek ağırlığı (Muhtar'ınki oyu kadar: 2, 13+ oyuncuda 3) `need = max(3, ⌈yaşayan/3⌉)`, sanık dışındaki kişi sayısını geçemez (4-9 → 3, 10-12 → 4, 13-15 → 5). Oyuncu aynı anda tek kişiyi destekler; başkasını suçlar ya da desteklerse desteği oraya geçer. Dava açılınca `trial` memo'su (`x`, `by` destekçiler, `n` ağırlık) mühürlenir.
 | `done` | DAY (trial) | — | sanık "savunmam bitti" → karar oyu |
 | `verdict` | DAY (verdict) | `y` true=assın / false=asmasın | yaşayan; varsayılan kuralda sanık oy kullanmaz; sonuç kesinleşince kendiliğinden kapanır |
 | `gvote` | DAY | `x` | hayalet (ölü) kehanet: bugün kim asılacak |
@@ -74,7 +76,9 @@ Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir.
   "day": {
     "stage": "free|trial|verdict",
     "accusations": { "p3": "p4" },            // suçlayan → suçlanan (destek bekleyen)
-    "trial": { "accused": "p4", "accuser": "p3", "seconder": "p5", "verdicts": { "p0": true } },
+    "backers": { "p4": ["p3", "p6"] },        // suçlanan → destekçiler (ilki suçlayan)
+    "support": { "p4": 2 }, "need": 3,        // destek ağırlığı ve dava eşiği
+    "trial": { "accused": "p4", "accuser": "p3", "seconder": "p5", "backers": ["p3", "p5", "p6"], "verdicts": { "p0": true } },
     "triedToday": [], "weights": { "p2": 2, "p0": 1 }  // dava varken oy ağırlıkları
   },
   "lastNight": { "round": 1, "died": "p6", "saved": false },

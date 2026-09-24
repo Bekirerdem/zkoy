@@ -45,6 +45,8 @@ export interface Trial {
   accused: string;
   accuser: string;
   seconder: string;
+  /** Everyone whose support opened the trial (accuser first). */
+  backers: string[];
   /** voter id -> true (assın) / false (asmasın) */
   verdicts: Record<string, boolean>;
 }
@@ -53,6 +55,8 @@ export interface DayState {
   stage: DayStage;
   /** accuser id -> accused id (unseconded accusations, "askıda") */
   accusations: Record<string, string>;
+  /** accused id -> backers in order (first = accuser). A player backs one accused at a time. */
+  backers: Record<string, string[]>;
   trial: Trial | null;
   /** accused ids that already stood trial today (no second trial same day) */
   triedToday: string[];
@@ -97,6 +101,11 @@ export interface RoomRules {
   gozcu: boolean | null;
   /** Sanık kendi davasında oy kullanır mı (varsayılan hayır). */
   accusedVotes: boolean;
+  /**
+   * Dava açmak için gereken destek ağırlığı (suçlayan dahil, Muhtar oyu kadar
+   * sayılır). null = otomatik: yaşayan/3 yukarı yuvarlanır, en az 3.
+   */
+  trialSupport: number | null;
 }
 
 export interface RoomState {

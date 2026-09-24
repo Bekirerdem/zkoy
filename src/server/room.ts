@@ -222,11 +222,13 @@ export class Room {
         if (engine.nightComplete(s)) events.push(...this.resolveNight());
         break;
       case "accuse":
-        events = engine.accuse(s, pid, need(m.x));
-        break;
       case "second":
-        events = engine.second(s, pid, need(m.x));
-        this.announce("verdict", `${this.name(s.day.trial!.accused)} yargılanıyor. Savunma başladı.`);
+        events = m.a === "accuse" ? engine.accuse(s, pid, need(m.x)) : engine.second(s, pid, need(m.x));
+        if (s.day.trial)
+          this.announce(
+            "verdict",
+            `${this.name(s.day.trial.accused)} yargılanıyor (${s.day.trial.backers.map((b) => this.name(b)).join(", ")}). Savunma başladı.`,
+          );
         break;
       case "done":
         events = engine.openVerdict(s, pid);

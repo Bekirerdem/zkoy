@@ -331,8 +331,23 @@ export class Room {
   }
 
   private resolveElection(): MemoEvent[] {
+    // Eşitlik ya da adaysızlık kurayla çözülür (motor); masaya nedenini söyle.
+    const { candidates, votes } = this.state.election;
+    const tally = new Map<string, number>();
+    for (const c of candidates) tally.set(c, 0);
+    for (const c of Object.values(votes)) tally.set(c, (tally.get(c) ?? 0) + 1);
+    const top = Math.max(0, ...tally.values());
+    const tied = [...tally].filter(([, n]) => n === top).map(([c]) => c);
     const events = engine.resolveElection(this.state, randomInt());
-    this.announce("info", `Köyün Muhtarı ${this.name(this.state.muhtar)}. Gece çöküyor.`);
+    const muhtar = this.name(this.state.muhtar);
+    if (candidates.length === 0)
+      this.announce("info", `Aday çıkmadı, ebe kura çekti: Muhtar ${muhtar}. Gece çöküyor.`);
+    else if (tied.length > 1)
+      this.announce(
+        "info",
+        `${tied.map((c) => this.name(c)).join(" ile ")} ${top}-${top} berabere kaldı. Ebe kura çekti: Muhtar ${muhtar}. Gece çöküyor.`,
+      );
+    else this.announce("info", `Köyün Muhtarı ${muhtar} (${top} oy). Gece çöküyor.`);
     return events;
   }
 

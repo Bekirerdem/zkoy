@@ -335,10 +335,6 @@ function viewSetup() {
         h("span", { class: "muted" }, "Küçük masada gözcü vampiri çabuk bulur."),
         seg("gozcu", [[null, "Otomatik"], [true, "Var"], [false, "Yok"]]),
         h("span", { class: "mono muted", style: "font-size:12px" }, "otomatik = 13 ve üstü oyuncuda var")),
-      h("div", { class: "stack" },
-        h("span", { class: "q" }, "Sanık kendi davasında oy kullansın mı?"),
-        h("span", { class: "muted" }, "Kullanırsa sanık Muhtar kendini kurtarabilir."),
-        seg("accusedVotes", [[false, "Hayır"], [true, "Evet"]])),
       h("div", { class: "stack push" },
         h("span", { class: "muted" }, "İlk oyunsa varsayılanlar iyi. Sonra değiştirirsiniz."),
         h("button", { class: "btn", onclick: create }, "Odayı kur"))),
@@ -703,13 +699,14 @@ function viewEnd() {
           h("span", { class: "who", style: "flex-grow:1" }, p.name + (p.id === m.pid ? " (sen)" : "")),
           badgeOf(p.id).filter((b) => b !== "kazanan").map((b) => h("span", { class: "note", style: "color:var(--gold)" }, b)),
           h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase("tr"))))),
-      // İfşa partisi doğrudan burada: oyun biter bitmez okunur, ek dokunuş yok.
-      h("div", { class: "stack", style: "gap:14px;margin-top:8px" },
-        h("span", { class: "eyebrow", style: "color:var(--seal)" }, "● İfşa partisi"),
-        h("h2", { class: "reveal-title" }, "Kim, ne zaman, ne yaptı?"),
-        storyBlock()),
-      h("button", { class: "ghost", onclick: () => { showIfsa = true; showSeal = true; render(); } }, "Mühür ayrıntısı ▸"),
-      h("button", { class: "btn", onclick: newRoom }, "Yeni oda")),
+      // İfşa kartı: önizleme + açıkça düğme olan alt satır (telefon testi: kartın
+      // dokunulabilir olduğu anlaşılmıyordu).
+      h("button", { class: "reveal-cta", onclick: () => { showIfsa = true; showSeal = false; render(); } },
+        h("span", { class: "t" }, "● İFŞA PARTİSİ"),
+        h("span", { class: "reveal-title" }, "Kim, ne zaman, ne yaptı?"),
+        h("span", { class: "preview" }, previewLines().map((t) => h("span", {}, t))),
+        h("span", { class: "open-row" }, h("span", {}, "Hikâyenin tamamı"), h("span", { "aria-hidden": "true" }, "→"))),
+      h("button", { class: "btn push", onclick: newRoom }, "Yeni oda")),
   };
 }
 
@@ -724,6 +721,12 @@ function newRoom() {
 }
 
 /* ── ifşa partisi + mühür ayrıntısı (tasarım 21-22) ── */
+
+/** İfşa kartındaki önizleme: gecelerin ilk iki satırı. */
+function previewLines() {
+  const lines = (s.story || []).filter((c) => c.kind === "night").flatMap((c) => c.lines.map((l) => l.text));
+  return lines.slice(0, 2);
+}
 
 const sealDot = (sealed) => h("span", { class: `sdot${sealed ? "" : " open"}`, title: sealed ? "mühürlendi" : "zincire gidiyor" });
 
@@ -762,9 +765,9 @@ function viewIfsa() {
       h("div", { class: "bar" },
         h("button", { class: "ghost small", onclick: () => { showIfsa = false; showSeal = false; render(); } }, "← Sonuç"),
         h("span", { class: "seal" }, pending ? `● ${pending} yolda` : "● hepsi mühürlü")),
-      h("h1", {}, "Bu oyun zincirde."),
-      sealBox,
-      h("button", { class: "ghost push", onclick: () => { showIfsa = false; showSeal = false; render(); } }, "← Sonuca dön")),
+      h("h1", {}, showSeal ? "Bu oyun zincirde." : "Kim, ne zaman, ne yaptı?"),
+      showSeal ? sealBox : storyBlock(),
+      h("button", { class: "ghost push", onclick: () => { showSeal = !showSeal; render(); } }, showSeal ? "← Hikâyeye dön" : "Mühür ayrıntısı ▸")),
   };
 }
 

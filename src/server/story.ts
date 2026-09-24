@@ -76,6 +76,9 @@ export function buildStory(
   let trial: { round: number; accused: string; votes: Map<string, boolean>; sealed: boolean } | null = null;
   // Gece hamlesi değiştirilebilir: aynı turda aynı oyuncunun satırı güncellenir.
   const nightLine = new Map<string, StoryLine>();
+  // Muhtar seçimi: her seçmenin son oyu (eşitlik anlatımı için).
+  const electionVotes = new Map<string, string>();
+  let electionSealed = true;
 
   for (const row of rows) {
     const m = JSON.parse(row.memo) as Record<string, unknown>;
@@ -84,9 +87,24 @@ export function buildStory(
     const night = () => chapter(`${r}. gece`, "night");
     const day = () => chapter(`${r}. gün`, "day");
     switch (m.t) {
-      case "muhtar":
-        chapter("Seçim", "start").lines.push({ text: `Köy ${accusative(name(m.p))} Muhtar seçti.`, sealed });
+      case "mvote":
+        electionVotes.set(String(m.p), String(m.x));
+        electionSealed &&= sealed;
         break;
+      case "muhtar": {
+        const tally = new Map<string, number>();
+        for (const c of electionVotes.values()) tally.set(c, (tally.get(c) ?? 0) + 1);
+        const top = Math.max(0, ...tally.values());
+        const tied = [...tally].filter(([, n]) => n === top).map(([c]) => name(c));
+        const text =
+          tally.size === 0
+            ? `Aday çıkmadı; ebe kurayla ${accusative(name(m.p))} Muhtar yaptı.`
+            : tied.length > 1
+              ? `${tied.join(" ile ")} ${top}-${top} berabere kaldı; ebe kurayla ${accusative(name(m.p))} Muhtar yaptı.`
+              : `Köy ${top} oyla ${accusative(name(m.p))} Muhtar seçti.`;
+        chapter("Seçim", "start").lines.push({ text, sealed: sealed && electionSealed });
+        break;
+      }
       case "night": {
         const who = role(m.p);
         const text =

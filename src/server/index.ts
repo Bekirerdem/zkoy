@@ -164,8 +164,28 @@ export function startServer(opts: ServerOptions = {}) {
     else room.cmd(pid, msg);
   }
 
-  function serveStatic(pathname: string): Response {
+  /**
+   * Cloudflare statik dosyalara 4 saatlik tarayıcı önbelleği basıyor; düzeltme
+   * telefonlara saatler sonra ulaşıyordu. Sayfa her istekte dosyaların içerik
+   * damgasıyla verilir (`app.js?v=…`): dosya değişince adres de değişir.
+   */
+  function assetVersion(rel: string): string {
+    const f = Bun.file(joinPath(webDir, rel));
+    return String(Math.floor(f.lastModified / 1000));
+  }
+
+  async function serveIndex(): Promise<Response> {
+    const html = (await Bun.file(joinPath(webDir, "index.html")).text())
+      .replace('src="/app.js"', `src="/app.js?v=${assetVersion("app.js")}"`)
+      .replace('href="/style.css"', `href="/style.css?v=${assetVersion("style.css")}"`);
+    return new Response(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+    });
+  }
+
+  function serveStatic(pathname: string): Response | Promise<Response> {
     const rel = pathname === "/" || pathname.startsWith("/j/") ? "index.html" : pathname.slice(1);
+    if (rel === "index.html" && existsSync(joinPath(webDir, rel))) return serveIndex();
     const file = normalize(joinPath(webDir, rel));
     if (!file.startsWith(normalize(webDir)) || !existsSync(file))
       return new Response("bulunamadı", { status: 404 });

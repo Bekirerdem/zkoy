@@ -254,7 +254,9 @@ body.day .dots span.on { background: #1C1B29; }
 .reveal-cta:active { transform: scale(0.98); }
 .reveal-cta .t { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--seal); }
 .reveal-cta:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
-.reveal-title { margin: 0; font-family: var(--d-font); font-weight: 800; font-size: 32px; line-height: 1; letter-spacing: -0.02em; }
+.reveal-title { margin: 0; font-family: var(--d-font); font-weight: 800; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; }
+.reveal-cta .preview { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+.reveal-cta .open-row { margin-top: 6px; min-height: 48px; border-radius: 12px; background: var(--gold); color: var(--gold-ink); font-family: var(--d-font); font-weight: 800; font-size: 17px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
 .story { display: flex; flex-direction: column; gap: 18px; }
 .chapter { display: flex; flex-direction: column; gap: 8px; }
 .chapter .ch { font-size: 12px; letter-spacing: 0.1em; }

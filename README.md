@@ -118,6 +118,10 @@ test/          bun test suites
 - **Next:** the big-screen mode (narration and the village square on a projector, phones as controllers), the Flutter app for iOS and Android, and sponsored event rooms that seal on mainnet.
 - ZKöy began at the ZcashTR 48-hour challenge during Rlay Blockchain Week in Şirince (August 2026), where it took first place. The current version is a full rewrite of that prototype.
 
+## License and security
+
+MIT, see [LICENSE](LICENSE). Found a way to peek at hidden information or act for someone else? Please report it privately, see [SECURITY.md](SECURITY.md).
+
 ## Team
 
 - **Bekir Erdem**: server, Zcash integration, game engine, web client

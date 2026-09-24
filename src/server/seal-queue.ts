@@ -47,8 +47,15 @@ export class SealQueue {
       .all(code) as Array<{ txid: string; n: number }>;
   }
 
-  async flush(): Promise<void> {
-    if (this.flushing) return;
+  /** Kuyruk boşalana kadar bekler; zaten çalışıyorsa o çalışmayı döndürür. */
+  flush(): Promise<void> {
+    if (!this.running) this.running = this.drain().finally(() => (this.running = null));
+    return this.running;
+  }
+
+  private running: Promise<void> | null = null;
+
+  private async drain(): Promise<void> {
     this.flushing = true;
     try {
       for (;;) {

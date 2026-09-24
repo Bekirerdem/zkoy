@@ -9,6 +9,7 @@ import { ZcashService } from "../zcash/service";
 import { Db } from "./db";
 import { ActMsg, CmdMsg } from "./protocol";
 import { SealQueue } from "./seal-queue";
+import { StoryChapter, buildStory } from "./story";
 
 export const MIN_PLAYERS = Number(process.env.ZKOY_MIN_PLAYERS ?? engine.MIN_PLAYERS);
 /** Salon sigortası: kurucu geceyi ancak bu kadar sonra zorla kapatabilir. */
@@ -168,6 +169,12 @@ export class Room {
     const pid = this.tokens.get(sha256Hex(token));
     if (!pid) throw new EngineError("oturum geçersiz, odaya yeniden katıl");
     return pid;
+  }
+
+  /** İfşa partisi hikâyesi (yalnız END'de anlamlı). */
+  story(): StoryChapter[] {
+    if (this.gameId === null) return [];
+    return buildStory(this.deps.db, this.gameId, this.state.players);
   }
 
   isHost(pid: string): boolean {

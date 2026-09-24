@@ -5,7 +5,7 @@
 import { weightOf } from "../engine/engine";
 import { Role } from "../engine/types";
 import { CmdKind } from "./protocol";
-import { NIGHT_FORCE_MS, Room } from "./room";
+import { NIGHT_FORCE_MS, Room, sha256Hex } from "./room";
 import { SealQueue } from "./seal-queue";
 
 export interface PublicPlayer {
@@ -60,8 +60,17 @@ export function publicView(room: Room, seals: SealQueue, chain: string) {
     badges: end ? s.badges : null,
     kahinScore: end ? s.kahinScore : null,
     reveal: end
-      ? { seed: s.seed, salt: s.seedSalt, commit: s.seedCommit, ufvk: room.ufvk, roomAddress: room.address }
+      ? {
+          seed: s.seed,
+          salt: s.seedSalt,
+          commit: s.seedCommit,
+          // Kura doğrulaması: sha256(seed|salt) oyun başında mühürlenen taahhüde eşit mi.
+          seedOk: s.seed !== null && !!s.seedSalt && sha256Hex(`${s.seed}|${s.seedSalt}`) === s.seedCommit,
+          ufvk: room.ufvk,
+          roomAddress: room.address,
+        }
       : null,
+    story: end ? room.story() : null,
     nightStartedAt: room.nightStartedAt,
     announcements: room.announcements.slice(-12),
     seals: {

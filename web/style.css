@@ -126,7 +126,7 @@ body.night.entry { background: radial-gradient(120% 60% at 50% 0%, #2A2340 0%, #
 .av.dead { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
 
 /* ── rol kartı ── */
-.card { flex-grow: 1; min-height: 60dvh; border-radius: 28px; display: flex; flex-direction: column; justify-content: space-between; padding: 28px; border: 1px solid var(--line); animation: flip 520ms var(--pop); }
+.card { min-height: 46dvh; border-radius: 28px; display: flex; flex-direction: column; justify-content: space-between; padding: 28px; border: 1px solid var(--line); animation: flip 520ms var(--pop); }
 @keyframes flip { from { transform: rotateY(80deg) scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
 .card h2 { margin: 0; font-family: var(--d-font); font-weight: 800; font-size: clamp(64px, 22vw, 88px); line-height: 0.88; letter-spacing: -0.04em; }
 .card .foot { padding-top: 18px; border-top: 1px solid currentColor; display: flex; flex-direction: column; gap: 6px; }
@@ -196,6 +196,75 @@ body.night.end { background: radial-gradient(110% 45% at 50% 0%, #3D3212 0%, #11
 #toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: 440px; width: calc(100% - 40px); background: var(--wax); color: #fff; border-radius: 14px; padding: 14px 16px; font-weight: 500; animation: arrive 260ms var(--pop); z-index: 10; }
 .offline { font-family: var(--m-font); font-size: 12px; color: var(--wax-soft); }
 .sr { position: absolute; left: -9999px; }
+
+/* ── küçük düğmeler, link ── */
+.ghost.small { min-height: 40px; padding: 0 14px; font-size: 14px; border-radius: 10px; color: var(--muted); }
+.link { min-height: 44px; padding: 0 4px; color: var(--accent); font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+.link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* ── ebe ── */
+.ebe-title { font-size: clamp(48px, 15vw, 60px); line-height: 0.92; letter-spacing: -0.035em; }
+.ebe-title.big { font-size: clamp(56px, 18vw, 72px); letter-spacing: -0.04em; }
+body.night.ebe-gece { background: radial-gradient(60% 30% at 50% 38%, #1B1730 0%, #050409 70%) fixed; }
+body.night.ebe-sec { background: radial-gradient(100% 50% at 50% 0%, #2A2340 0%, #11101B 65%) fixed; }
+.lantern.dim { width: 40px; height: 40px; opacity: 0.7; }
+.facts { display: flex; flex-direction: column; gap: 14px; font-size: 17px; line-height: 1.45; color: var(--soft); }
+.facts > div { display: flex; gap: 14px; }
+.facts.one { font-size: 16px; }
+.kv { display: flex; justify-content: space-between; font-size: 17px; }
+
+/* ── kural kartları ── */
+.rule-title { font-size: clamp(44px, 14vw, 56px); margin-top: 8px; }
+.rule-big { font-family: var(--d-font); font-weight: 800; font-size: 120px; line-height: 0.8; letter-spacing: -0.05em; color: #2A2340; }
+.rule-nav { display: flex; gap: 10px; align-items: center; }
+.rule-nav .btn { padding: 0 28px; }
+.dots { display: flex; gap: 6px; flex-grow: 1; }
+.dots span { width: 6px; height: 6px; border-radius: 3px; background: var(--line); transition: width 240ms var(--land); }
+.dots span.on { width: 22px; background: var(--gold); }
+body.day .dots span.on { background: #1C1B29; }
+.rolebox { border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; font-size: 15px; background: var(--surface); color: var(--soft); border: 1px solid transparent; }
+.rolebox .rn { font-family: var(--d-font); font-weight: 800; font-size: 20px; color: var(--text); }
+.rolebox small { font-family: var(--m-font); font-weight: 400; font-size: 12px; opacity: 0.8; }
+.rolebox.vampir { background: #2A1418; border-color: #6E2A26; color: #E6CFCB; } .rolebox.vampir .rn { color: #F2D9D5; }
+.rolebox.doktor { background: #10211C; border-color: #2A5A4C; color: #C4E3D6; } .rolebox.doktor .rn { color: #D7F0E6; }
+.rolebox.gozcu { background: #19163A; border-color: #4A3F8C; color: #D3CCF2; } .rolebox.gozcu .rn { color: #E1DBFA; }
+.rolebox.deli { background: #2A2210; border-color: #7A5E1C; color: #EADDB8; } .rolebox.deli .rn { color: #F6E7C0; }
+.row.step { gap: 16px; padding: 14px 0; align-items: flex-start; font-size: 17px; line-height: 1.4; }
+
+/* ── oda kurma ── */
+.q { font-size: 16px; font-weight: 600; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.seg button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 15px; }
+.seg button.on { border: 2px solid var(--gold); background: #221E14; color: var(--gold); font-weight: 600; }
+.seg button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ── bekleme ── */
+.lobby-head { display: flex; gap: 16px; align-items: center; }
+.qr.sm { width: 128px; height: 128px; flex: none; padding: 10px; border-radius: 16px; align-self: auto; }
+.lobby-head .room-code { font-size: 32px; letter-spacing: 0.14em; align-self: flex-start; }
+.chip-role { font-size: 14px; padding: 7px 12px; border-radius: 999px; background: var(--surface); color: var(--soft); }
+.chip-role.vampir { background: #2A1418; color: #F2D9D5; }
+.chip-role.doktor { background: #10211C; color: #D7F0E6; }
+.chip-role.gozcu { background: #19163A; color: #E1DBFA; }
+.chip-role.deli { background: #2A2210; color: #F6E7C0; }
+.chip-role.off { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+
+/* ── son ve ifşa ── */
+.reveal-cta { text-align: left; border-radius: 18px; background: var(--surface); border: 1px solid var(--gold); padding: 18px; display: flex; flex-direction: column; gap: 6px; transition: transform 120ms var(--pop); }
+.reveal-cta:active { transform: scale(0.98); }
+.reveal-cta .t { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--seal); }
+.reveal-cta:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.story { display: flex; flex-direction: column; gap: 18px; }
+.chapter { display: flex; flex-direction: column; gap: 8px; }
+.chapter .ch { font-size: 12px; letter-spacing: 0.1em; }
+.sline { display: flex; gap: 10px; align-items: baseline; font-size: 15px; line-height: 1.45; }
+.sdot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--wax-soft); transform: translateY(-1px); }
+.sdot.open { background: transparent; border: 1px solid var(--wax-soft); }
+.okbox { border-radius: 16px; background: #10211C; border: 1px solid #2A5A4C; padding: 16px; display: flex; flex-direction: column; gap: 6px; color: #C4E3D6; }
+.okbox b { color: #D7F0E6; }
+.okbox.warn { background: #2A1418; border-color: #6E2A26; color: #E6CFCB; }
+details.tech summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); }
+details.tech .mono { font-size: 12px; line-height: 1.6; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
 
 /* ── perde (büyük ekran) ── */
 body.screen-mode #app { max-width: 1200px; }

@@ -30,12 +30,41 @@ const device = store.get("zkoy.device") || (() => {
 })();
 
 const ROLE = {
-  vampir: { name: "Vampir", tag: "GECE · AV", text: "Her gece takımınla bir kurban seçersin. Gündüz sakin ol, suçu başkasına at." },
-  doktor: { name: "Doktor", tag: "GECE · KORUMA", text: "Her gece birini korursun, kendin dahil. Koruduğun kişi o gece ölmez." },
-  gozcu: { name: "Gözcü", tag: "GECE · SORGU", text: "Her gece birine bakarsın: vampir mi değil mi, yalnız sen öğrenirsin." },
-  deli: { name: "Deli", tag: "GÜNDÜZ · OYUN", text: "Köy seni asarsa sen de kazanırsın. Şüpheli görün ama belli etme." },
-  koylu: { name: "Köylü", tag: "GÜNDÜZ · AKIL", text: "Gece uyursun. Gündüz konuş, dinle, doğru kişiyi as." },
+  vampir: {
+    name: "Vampir", tag: "GECE · AV",
+    text: "Köyü içeriden avlarsın. Sayınız köyün geri kalanına eşitlenince kazanırsınız.",
+    steps: ["Ebe “gece çöküyor” deyince telefonuna bak.", "Takımınla aynı kurbanı seç; takımının seçimini ekranda görürsün.", "Sabah sakin ol. Gündüz köylü gibi konuş, suçu başkasına at."],
+  },
+  doktor: {
+    name: "Doktor", tag: "GECE · KORUMA",
+    text: "Köyün hayat sigortasısın. Koruduğun kişi o gece ölmez.",
+    steps: ["Ebe “gece çöküyor” deyince telefonuna bak.", "Birini koru; kendini de koruyabilirsin.", "Doktor olduğunu belli etme, vampirlerin ilk hedefi olursun."],
+  },
+  gozcu: {
+    name: "Gözcü", tag: "GECE · SORGU",
+    text: "Gece birine bakarsın: vampir mi, değil mi. Yalnız sen öğrenirsin.",
+    steps: ["Ebe “gece çöküyor” deyince telefonuna bak.", "Birini sorgula; cevap sabah ekranında.", "Bildiğini gündüz akıllıca kullan; açık edersen avlanırsın."],
+  },
+  deli: {
+    name: "Deli", tag: "GÜNDÜZ · OYUN",
+    text: "Köy seni asarsa sen de kazanırsın, kim kazanırsa kazansın.",
+    steps: ["Gece uyursun, telefonun “köy uyuyor” der.", "Gündüz şüpheli görün ama belli etme.", "Asılırsan zafer senin."],
+  },
+  koylu: {
+    name: "Köylü", tag: "GÜNDÜZ · AKIL",
+    text: "Gece uyursun. Gündüz konuşur, dinler, doğru kişiyi asarsın.",
+    steps: ["Gece gözlerini kapat, telefonun “köy uyuyor” der.", "Gündüz konuş, dinle, çelişkileri yakala.", "Doğru kişiyi suçla; bütün vampirler asılınca köy kazanır."],
+  },
 };
+
+/** İlk açılış: köyün 5 kuralı (tasarım 13-17). */
+const RULES = [
+  { theme: "night", title: "Kim kimdir?", lead: "Rolünü yalnız sen bilirsin. Masadakiler tahmin eder.", roles: true },
+  { theme: "night rule-night", big: "gece", title: "Herkes gözünü kapatır.", lines: [["Vampirler", "bir kurban seçer.", "#F2D9D5"], ["Doktor", "birini korur.", "#D7F0E6"], ["Gözcü", "birine bakar.", "#E1DBFA"]], foot: "Hepsi telefondan, sessizce. Rolü olmayanın ekranında yalnız “Köy uyuyor” yazar; kimin hamle yaptığını ekrandan kimse anlayamaz." },
+  { theme: "day", title: "Gündüz dava kurulur.", steps: [["Suçla.", "Şüphelendiğin kişiye dokun."], ["Destek gelsin.", "Biri daha desteklerse dava açılır."], ["Savunma.", "Sanık konuşur, kimse sözünü kesmez."], ["Açık oy.", "Assın ya da asmasın. Oylar herkesin ekranında."], ["Yarıyı geçerse asılır", "ve rolü açıklanır. Geçmezse beraat eder, o gün bir daha yargılanmaz."]], foot: "Sanık kendi davasında oy kullanmaz. Gün bitince Muhtar geceye geçirir." },
+  { theme: "day dawn", badge: "Muhtar ×2", title: "Köyün bir Muhtarı var.", lines: [["", "Oyunun başında seçilir. Aday çıkmazsa kura çekilir."], ["", "Davada oyu iki sayılır (13 ve üstü oyuncuda üç)."], ["", "Günü yönetir: güne geçer, oylamayı açar, günü kapatır."], ["", "Ölürse makamı birine bırakır."]], foot: "Muhtar bir makam, rol değil. Vampir de Muhtar olabilir." },
+  { theme: "night end", title: "Kim kazanır?", win: true },
+];
 /** "O bir ___." — ünlü uyumu elle. */
 const WAS = { vampir: "vampirdi", doktor: "doktordu", gozcu: "gözcüydü", deli: "deliydi", koylu: "köylüydü" };
 const PHASE = { LOBBY: "Oda", ELECTION: "Seçim", NIGHT: "Gece", DAWN: "Şafak", DAY: "Meydan", EXECUTION: "İnfaz", END: "Son" };
@@ -53,6 +82,21 @@ let ws = null;
 let cardOpen = false;
 let draft = { name: store.get("zkoy.name") || "", code: (pathCode || "").toUpperCase(), will: null };
 let lastKey = null;
+/** Kural kartı adımı (0-4) ya da null. İlk ziyarette kendiliğinden açılır. */
+let rulesStep = store.get("zkoy.rulesSeen") ? null : 0;
+/** Oda kurma ekranı açık mı + seçilen kurallar. */
+let setup = false;
+let setupRules = { gozcu: null, accusedVotes: false };
+/** Oyun sonu: ifşa partisi ve mühür ayrıntısı. */
+let showIfsa = false;
+let showSeal = false;
+/** Görülen ebe anlatımları (oda başına, sekme ömrü boyunca). */
+const ebeSeen = new Set((() => { try { return JSON.parse(sessionStorage.getItem("zkoy.ebe") || "[]"); } catch { return []; } })());
+function markEbe(key) {
+  ebeSeen.add(key);
+  try { sessionStorage.setItem("zkoy.ebe", JSON.stringify([...ebeSeen])); } catch {}
+  render();
+}
 
 function send(msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
@@ -89,6 +133,8 @@ function connect() {
   ws.onmessage = (ev) => {
     const f = JSON.parse(ev.data);
     if (f.t === "joined") {
+      setup = false;
+      showIfsa = showSeal = false;
       session = { code: f.code, token: f.token };
       store.set("zkoy.session", session);
       history.replaceState(null, "", `/j/${f.code}`);
@@ -123,13 +169,20 @@ function render() {
   const focus = document.activeElement && document.activeElement.id;
   const caret = focus && document.activeElement.selectionStart;
   let view;
-  if (watchCode) view = viewScreen();
-  else if (!session || !s || !m) view = viewEntry();
-  else if (cardOpen && m.role) view = viewCard();
-  else view = { LOBBY: viewLobby, ELECTION: viewElection, NIGHT: viewNight, DAWN: viewDawn, DAY: viewDay, EXECUTION: viewExecution, END: viewEnd }[s.phase]();
+  let key;
+  const ebe = !watchCode && session && s && m && !cardOpen ? pendingEbe() : null;
+  if (watchCode) [view, key] = [viewScreen(), "perde"];
+  else if (rulesStep !== null) [view, key] = [viewRules(rulesStep), `kural:${rulesStep}`];
+  else if (!session || !s || !m) [view, key] = setup ? [viewSetup(), "setup"] : [viewEntry(), "entry"];
+  else if (cardOpen && m.role) [view, key] = [viewCard(), "card"];
+  else if (ebe) [view, key] = [viewEbe(ebe), `ebe:${ebe.key}`];
+  else if (s.phase === "END" && showIfsa) [view, key] = [viewIfsa(), `ifsa:${showSeal}`];
+  else {
+    view = { LOBBY: viewLobby, ELECTION: viewElection, NIGHT: viewNight, DAWN: viewDawn, DAY: viewDay, EXECUTION: viewExecution, END: viewEnd }[s.phase]();
+    key = `${s.phase}:${s.round}:${s.day && s.day.stage}`;
+  }
   // Giriş animasyonu yalnız ekran değişince oynar; aynı ekranın tazelenmesi
   // (her bot/oyuncu hamlesi) kartı yeniden döndürmesin.
-  const key = watchCode ? "perde" : !session || !s || !m ? "entry" : cardOpen && m.role ? "card" : `${s.phase}:${s.round}:${s.day && s.day.stage}`;
   if (key === lastKey) view.el.classList.add("still");
   lastKey = key;
   document.body.className = view.theme;
@@ -141,6 +194,151 @@ function render() {
       if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret);
     }
   }
+  if (key !== prevScrollKey) window.scrollTo(0, 0);
+  prevScrollKey = key;
+}
+let prevScrollKey = null;
+
+/* ── ebe anlatımları (tasarım 10-12) ── */
+
+/** Şu an gösterilmesi gereken, henüz görülmemiş anlatım. */
+function pendingEbe() {
+  const c = s.code;
+  if (s.phase === "ELECTION" && !ebeSeen.has(`${c}:sec`)) return { key: `${c}:sec`, kind: "sec" };
+  if (s.phase === "NIGHT" && m.alive && !ebeSeen.has(`${c}:gece:${s.round}`)) return { key: `${c}:gece:${s.round}`, kind: "gece" };
+  const t = s.day.trial;
+  if (s.phase === "DAY" && t && !ebeSeen.has(`${c}:dava:${s.round}:${t.accused}`)) return { key: `${c}:dava:${s.round}:${t.accused}`, kind: "dava" };
+  return null;
+}
+
+function viewEbe(e) {
+  const done = () => markEbe(e.key);
+  const head = (dark) => h("div", { class: "bar" }, h("span", { class: "mono", style: `font-size:12px;letter-spacing:0.1em;color:${dark ? "var(--gold)" : "#8A5F00"}` }, "EBE ANLATIYOR"), bar("").lastChild);
+  if (e.kind === "sec") {
+    const facts = [
+      ["01", h("span", {}, "Muhtar'ın oyu davada ", h("b", {}, s.muhtarWeight === 3 ? "üç" : "iki"), " sayılır.")],
+      ["02", "Günü o yönetir: güne geçer, oylamayı açar, günü kapatır."],
+      ["03", "Ölürse makamı birine bırakır. Vampir de Muhtar olabilir."],
+    ];
+    return {
+      theme: "night ebe-sec",
+      el: h("section", { class: "screen" }, head(true),
+        h("div", { class: "dawn-hero" },
+          h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, "ROLLER DAĞITILDI"),
+          h("h1", { class: "ebe-title" }, "Önce bir Muhtar seçin."),
+          h("div", { class: "facts" }, facts.map(([n, t]) => h("div", {}, h("span", { class: "mono", style: "color:var(--gold)" }, n), h("span", {}, t)))),
+          h("p", { class: "muted" }, "Aday olmak isteyen elini kaldırsın. Aday çıkmazsa kura çekilir.")),
+        h("button", { class: "btn", onclick: done }, "Seçime geç")),
+    };
+  }
+  if (e.kind === "gece") {
+    const actor = ["vampir", "doktor", "gozcu"].includes(m.role);
+    return {
+      theme: "night ebe-gece",
+      el: h("section", { class: "screen" }, head(true),
+        h("div", { class: "dawn-hero", style: "align-items:center;text-align:center" },
+          h("div", { class: "lantern dim", "aria-hidden": "true" }),
+          h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, `${s.muhtar ? `MUHTAR: ${nameOf(s.muhtar).toLocaleUpperCase("tr")} · ` : ""}${s.round}. GECE`),
+          h("h1", { class: "ebe-title big" }, "Gece çöküyor."),
+          h("p", { style: "max-width:300px;font-size:18px" }, "Herkes gözlerini kapatsın. Rolü olan telefonuna baksın, kimse konuşmasın."),
+          h("p", { class: "muted", style: "max-width:290px" }, actor ? "Senin bu gece bir hamlen var. Sessizce yap, sonra telefonu masaya bırak." : "Sabah olunca telefonun titrer. O zamana kadar masaya bırak.")),
+        h("button", { class: actor ? "btn" : "ghost", onclick: done }, actor ? "Hamleme geç" : "Gözlerim kapalı")),
+    };
+  }
+  const t = s.day.trial;
+  const mine = t.accused === m.pid;
+  return {
+    theme: "day",
+    el: h("section", { class: "screen" }, head(false),
+      h("div", { class: "dawn-hero" },
+        h("span", { class: "mono", style: "letter-spacing:0.1em;color:var(--wax)" }, `${s.round}. GÜN · DAVA AÇILDI`),
+        h("h1", { class: "ebe-title" }, mine ? "Dava sana açıldı." : `${nameOf(t.accused)} yargılanıyor.`),
+        h("div", { class: "will" },
+          h("div", { class: "kv" }, h("span", { class: "muted" }, "Suçlayan"), h("b", {}, nameOf(t.accuser))),
+          h("div", { class: "kv" }, h("span", { class: "muted" }, "Destekleyen"), h("b", {}, nameOf(t.seconder)))),
+        h("p", { style: "font-size:18px" }, mine
+          ? "Şimdi sen konuşuyorsun. Masaya kendini savun; bitince “Savunmam bitti”ye bas, oylama açılsın."
+          : `Şimdi ${nameOf(t.accused)} konuşuyor. Sözünü kesmeyin. Savunması bitince ya da Muhtar derse oylama açılır.`)),
+      h("button", { class: "btn", onclick: done }, mine ? "Savunmaya geç" : "Dinliyorum")),
+  };
+}
+
+/* ── köyün kuralları (tasarım 13-17) ── */
+
+function closeRules() {
+  store.set("zkoy.rulesSeen", true);
+  rulesStep = null;
+  render();
+}
+
+function viewRules(i) {
+  const r = RULES[i];
+  const last = i === RULES.length - 1;
+  const dots = h("span", { class: "dots", "aria-label": `${i + 1} / ${RULES.length}` }, RULES.map((_, j) => h("span", { class: j === i ? "on" : "" })));
+  const next = () => { if (last) closeRules(); else { rulesStep = i + 1; render(); } };
+  const back = () => { rulesStep = i - 1; render(); };
+  let body;
+  if (r.roles) {
+    body = h("div", { class: "stack" }, ["vampir", "koylu", "doktor", "gozcu", "deli"].map((k) =>
+      h("div", { class: `rolebox ${k}` },
+        h("span", { class: "rn" }, ROLE[k].name, k === "gozcu" ? h("small", {}, " 13+ oyuncuda") : k === "deli" ? h("small", {}, " 8+ oyuncuda") : null),
+        h("span", {}, { vampir: "Gece takımıyla birini avlar. Gündüz köylü gibi davranır.", koylu: "Gece uyur. Gündüz konuşur, dinler, doğru kişiyi asar.", doktor: "Her gece birini korur, kendini de. Koruduğu ölmez.", gozcu: "Her gece birine bakar: vampir mi, değil mi.", deli: "Köy onu asarsa o da kazanır." }[k]))));
+  } else if (r.steps) {
+    body = h("div", { class: "rows" }, r.steps.map(([b, t], j) =>
+      h("div", { class: "row step" }, h("span", { class: "mono", style: "color:var(--wax)" }, `0${j + 1}`), h("span", {}, h("b", {}, b), " ", t))));
+  } else if (r.win) {
+    body = h("div", { class: "stack" },
+      h("div", { class: "rows" }, [["Köy", "Bütün vampirler asılınca.", ""], ["Vampirler", "Sayıları köyün geri kalanına eşitlenince.", "#F2D9D5"], ["Deli", "Köy onu asarsa, kim kazanırsa kazansın.", "#F6E7C0"]].map(([n, t, c]) =>
+        h("div", { class: "row", style: "flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0" }, h("span", { style: `font-family:var(--d-font);font-weight:800;font-size:22px;${c ? `color:${c}` : ""}` }, n), h("span", { class: "muted", style: "font-size:16px" }, t)))),
+      h("div", { class: "ledger" }, h("span", { class: "t" }, "● MÜHÜR"), h("span", {}, "Her gece hamlesi ve her oy mühürlenir. Oyun bitince kim ne yaptı herkes görür; kimse “ben o gece onu seçmedim” diyemez.")));
+  } else {
+    body = h("div", { class: "stack", style: "gap:14px" },
+      r.big && h("span", { class: "rule-big", "aria-hidden": "true" }, r.big),
+      r.badge && h("span", { class: "badge", style: "align-self:flex-start;font-size:14px;padding:6px 12px" }, r.badge),
+      h("div", { class: "stack", style: "gap:12px;font-size:17px" }, r.lines.map(([b, t, c]) => h("span", {}, b ? h("b", { style: c ? `color:${c}` : "" }, b + " ") : null, t))));
+  }
+  return {
+    theme: r.theme,
+    el: h("section", { class: "screen" },
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `Köyün kuralları · ${i + 1} / ${RULES.length}`), !last && h("button", { class: "ghost small", onclick: closeRules }, "Atla")),
+      h("h1", { class: "rule-title", style: r.win ? "color:var(--gold)" : "" }, r.title),
+      r.lead && h("p", {}, r.lead),
+      body,
+      r.foot && h("p", { class: "muted" }, r.foot),
+      h("div", { class: "rule-nav push" }, dots,
+        i > 0 && h("button", { class: "ghost", onclick: back }, "Geri"),
+        h("button", { class: "btn", onclick: next }, last ? "Hazırım" : "İleri"))),
+  };
+}
+
+/* ── oda kurma (tasarım 18) ── */
+
+function viewSetup() {
+  const seg = (field, options) => h("div", { class: "seg", role: "radiogroup" }, options.map(([v, label]) =>
+    h("button", { role: "radio", "aria-checked": String(setupRules[field] === v), class: setupRules[field] === v ? "on" : "", onclick: () => { setupRules[field] = v; render(); } }, label)));
+  const create = () => {
+    const name = (draft.name || "").trim();
+    if (!name) { setup = false; render(); return toast("Önce adını yaz."); }
+    send({ t: "create", name, rules: setupRules });
+  };
+  return {
+    theme: "night",
+    el: h("section", { class: "screen" },
+      h("div", { class: "bar" }, h("button", { class: "ghost small", onclick: () => { setup = false; render(); } }, "← Geri"), h("span", { class: "eyebrow" }, "Oda kur")),
+      h("h1", {}, "Masanın kuralları"),
+      h("div", { class: "stack" },
+        h("span", { class: "q" }, "Gözcü olsun mu?"),
+        h("span", { class: "muted" }, "Küçük masada gözcü vampiri çabuk bulur."),
+        seg("gozcu", [[null, "Otomatik"], [true, "Var"], [false, "Yok"]]),
+        h("span", { class: "mono muted", style: "font-size:12px" }, "otomatik = 13 ve üstü oyuncuda var")),
+      h("div", { class: "stack" },
+        h("span", { class: "q" }, "Sanık kendi davasında oy kullansın mı?"),
+        h("span", { class: "muted" }, "Kullanırsa sanık Muhtar kendini kurtarabilir."),
+        seg("accusedVotes", [[false, "Hayır"], [true, "Evet"]])),
+      h("div", { class: "stack push" },
+        h("span", { class: "muted" }, "İlk oyunsa varsayılanlar iyi. Sonra değiştirirsiniz."),
+        h("button", { class: "btn", onclick: create }, "Odayı kur"))),
+  };
 }
 
 function bar(label) {
@@ -159,15 +357,26 @@ const initial = (n) => n.slice(0, 1).toLocaleUpperCase("tr");
 function viewEntry() {
   const create = () => {
     const name = document.getElementById("ad").value.trim();
-    if (!name) return toast("Önce adını yaz.");
+    if (!name) {
+      document.getElementById("ad").focus();
+      return toast("Önce adını yaz.");
+    }
     store.set("zkoy.name", name);
-    send({ t: "create", name });
+    draft.name = name;
+    setup = true;
+    render();
   };
   const join = () => {
     const name = document.getElementById("ad").value.trim();
     const code = document.getElementById("kod").value.trim().toUpperCase();
-    if (!name) return toast("Önce adını yaz.");
-    if (code.length < 4) return toast("Oda kodunu yaz.");
+    if (!name) {
+      document.getElementById("ad").focus();
+      return toast("Önce adını yaz.");
+    }
+    if (code.length < 4) {
+      document.getElementById("kod").focus();
+      return toast("Oda kodunu yaz.");
+    }
     store.set("zkoy.name", name);
     send({ t: "join", code, name });
   };
@@ -190,7 +399,9 @@ function viewEntry() {
           h("label", { class: "sr", for: "kod" }, "Oda kodu"),
           h("input", { id: "kod", class: "code", maxlength: "8", placeholder: "ODA KODU", value: draft.code, oninput: (e) => (draft.code = e.target.value.toUpperCase()) }),
           joining ? h("button", { class: "ghost gold", onclick: () => { draft.code = ""; history.replaceState(null, "", "/"); render(); } }, "Oda kur") : h("button", { class: "ghost gold", onclick: join }, "Gir")),
-        h("p", { class: "muted", style: "text-align:center" }, "QR'ı okuttuysan kod hazır gelir."))),
+        h("div", { class: "bar", style: "justify-content:center;gap:16px" },
+          h("span", { class: "muted" }, "QR'ı okuttuysan kod hazır gelir."),
+          h("button", { class: "link", onclick: () => { rulesStep = 0; render(); } }, "Nasıl oynanır?")))),
   };
 }
 
@@ -202,17 +413,38 @@ function qrSvg(text) {
   return q.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
 }
 
+/** Motorun rolePlan'ının aynısı: masadaki rol dağılımı (herkese açık bilgi). */
+function composition(n, rules) {
+  const vampir = n >= 13 ? 3 : n >= 10 ? 2 : 1;
+  const gozcu = (rules.gozcu === null ? n >= 13 : rules.gozcu) ? 1 : 0;
+  const deli = n >= 8 ? 1 : 0;
+  return { vampir, doktor: 1, gozcu, deli, koylu: Math.max(0, n - vampir - 1 - gozcu - deli) };
+}
+
 function viewLobby() {
   const link = `${location.origin}/j/${s.code}`;
   const n = s.players.length;
+  const c = composition(Math.max(n, 7), s.rules);
+  const chip = (cls, text) => h("span", { class: `chip-role ${cls}` }, text);
   return {
     theme: "night",
     el: h("section", { class: "screen" },
-      bar("Oda"),
-      h("div", { class: "qr", html: qrSvg(link), role: "img", "aria-label": `Katılım QR kodu: ${link}` }),
-      h("div", { class: "room-code" }, s.code),
-      h("p", { class: "muted", style: "text-align:center" }, "Okut ya da kodu yaz, masaya otur."),
-      h("div", { class: "bar" }, h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:28px" }, "Masa"), h("span", { class: "mono muted" }, `${n} / 15 · en az 7`)),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, "Oda"), h("button", { class: "ghost small", onclick: () => { rulesStep = 0; render(); } }, "Nasıl oynanır?")),
+      h("div", { class: "lobby-head" },
+        h("div", { class: "qr sm", html: qrSvg(link), role: "img", "aria-label": `Katılım QR kodu: ${link}` }),
+        h("div", { class: "stack", style: "gap:6px" },
+          h("div", { class: "room-code" }, s.code),
+          h("span", { class: "muted" }, "Okut ya da kodu yaz, masaya otur."),
+          h("button", { class: "link", style: "align-self:flex-start", onclick: () => copyLink(link) }, "Linki kopyala"))),
+      h("div", { class: "stack", style: "gap:8px" },
+        h("span", { class: "eyebrow" }, n < 7 ? "7 kişi olunca masada" : "Bu masada"),
+        h("div", { class: "chips" },
+          chip("vampir", `${c.vampir} vampir`), chip("doktor", "1 doktor"),
+          c.gozcu ? chip("gozcu", "1 gözcü") : chip("off", "gözcü yok"),
+          c.deli ? chip("deli", "1 deli") : null,
+          chip("koylu", `${c.koylu} köylü`)),
+        h("span", { class: "muted", style: "font-size:13px" }, `Masa büyüdükçe dağılım kendiliğinden değişir. Sanık kendi davasında ${s.rules.accusedVotes ? "oy kullanır" : "oy kullanmaz"}.`)),
+      h("div", { class: "bar" }, h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:26px" }, "Masa"), h("span", { class: "mono muted" }, `${n} / 15 · en az 7`)),
       h("div", { class: "seats" }, s.players.map((p) =>
         h("div", { class: `seat${p.isHost ? " host" : ""}` },
           h("span", { class: `av${p.isHost ? " gold" : ""}` }, initial(p.name)),
@@ -220,11 +452,17 @@ function viewLobby() {
           p.isHost ? h("span", { class: "tag" }, "kurucu")
             : m.can.includes("kick") && h("button", { class: "x", "aria-label": `${p.name} masadan çıkar`, onclick: () => cmd("kick", { x: p.id }) }, "✕")))),
       h("div", { class: "stack push" },
-        h("p", { class: "muted" }, `Kurallar · gözcü ${s.rules.gozcu === null ? "otomatik (13+)" : s.rules.gozcu ? "var" : "yok"} · sanık ${s.rules.accusedVotes ? "oy kullanır" : "oy kullanmaz"}`),
         m.can.includes("start")
           ? h("button", { class: "btn", disabled: n < 7, onclick: () => cmd("start") }, n < 7 ? `${7 - n} kişi daha lazım` : "Köyü uyut, başlat")
-          : h("p", { class: "muted" }, "Kurucu başlatınca rol kartın gelecek."))),
+          : h("p", { class: "muted" }, `${nameOf(s.hostPid)} başlatınca rol kartın gelecek. Telefonunu kimseye gösterme.`))),
   };
+}
+
+function copyLink(link) {
+  const ok = () => toast("Link kopyalandı.");
+  if (navigator.share) navigator.share({ title: "ZKöy", text: "Masaya otur:", url: link }).catch(() => {});
+  else if (navigator.clipboard) navigator.clipboard.writeText(link).then(ok, () => toast(link));
+  else toast(link);
 }
 
 function viewCard() {
@@ -239,7 +477,10 @@ function viewCard() {
         m.team.length
           ? h("div", { class: "foot" }, h("span", { style: "font-size:13px;opacity:0.8" }, "Takımın"), h("span", { style: "font-family:var(--d-font);font-weight:600;font-size:24px" }, m.team.map(nameOf).join(", ")))
           : h("div", { class: "foot" }, h("span", { style: "font-size:13px;opacity:0.8" }, "Kimseye gösterme."))),
-      h("button", { class: "ghost", onclick: () => { cardOpen = false; render(); } }, "Kartı kapat")),
+      h("div", { class: "stack", style: "gap:10px" },
+        h("span", { class: "eyebrow" }, "Senin gecen böyle geçer"),
+        r.steps.map((t, i) => h("div", { class: "facts one" }, h("div", {}, h("span", { class: "mono", style: "color:var(--wax-soft)" }, String(i + 1)), h("span", {}, t))))),
+      h("button", { class: "ghost", onclick: () => { cardOpen = false; render(); } }, s.phase === "ELECTION" && !ebeSeen.has(`${s.code}:sec`) ? "Anladım, devam" : "Kartı kapat")),
   };
 }
 
@@ -458,13 +699,61 @@ function viewEnd() {
           h("span", { class: "who", style: "flex-grow:1" }, p.name + (p.id === m.pid ? " (sen)" : "")),
           badgeOf(p.id).filter((b) => b !== "kazanan").map((b) => h("span", { class: "note", style: "color:var(--gold)" }, b)),
           h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase("tr"))))),
-      h("div", { class: "ledger" },
-        h("span", { class: "t" }, "MÜHÜR DEFTERİ"),
-        h("span", {}, "Kura, her gece ve her oy zincire yazıldı. Kimse sonradan değiştiremez."),
-        h("span", { class: "mono muted", style: "font-size:12px" }, `${s.seals.memoCount} kayıt · ${s.seals.txCount} işlem${s.seals.pending ? ` · ${s.seals.pending} yolda` : ""}`),
-        s.reveal && h("span", { class: "mono muted", style: "font-size:12px;word-break:break-all" }, `kura: ${s.reveal.seed} · taahhüt ${String(s.reveal.commit).slice(0, 16)}…`),
-        s.seals.chain === "zingo" && s.seals.recent.length > 0 && h("span", { class: "mono muted", style: "font-size:12px;word-break:break-all" }, `son mühür: ${s.seals.recent[s.seals.recent.length - 1]}`)),
-      h("button", { class: "btn push", onclick: () => { store.del("zkoy.session"); session = null; s = m = null; draft.code = ""; history.replaceState(null, "", "/"); render(); } }, "Yeni oda")),
+      h("button", { class: "reveal-cta", onclick: () => { showIfsa = true; render(); } },
+        h("span", { class: "t" }, "● İFŞA PARTİSİ"),
+        h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:24px" }, "Kim, ne zaman, ne yaptı?"),
+        h("span", { class: "muted" }, "Her gece hamlesi ve her oy, mühürlü haliyle.")),
+      h("button", { class: "btn push", onclick: newRoom }, "Yeni oda")),
+  };
+}
+
+function newRoom() {
+  store.del("zkoy.session");
+  session = null;
+  s = m = null;
+  showIfsa = showSeal = false;
+  draft.code = "";
+  history.replaceState(null, "", "/");
+  render();
+}
+
+/* ── ifşa partisi + mühür ayrıntısı (tasarım 21-22) ── */
+
+function viewIfsa() {
+  const story = s.story || [];
+  const pending = s.seals.pending;
+  const dot = (sealed) => h("span", { class: `sdot${sealed ? "" : " open"}`, title: sealed ? "mühürlendi" : "zincire gidiyor" });
+  const sealBox = h("div", { class: "stack", style: "gap:12px" },
+    h("div", { class: `okbox${s.reveal && s.reveal.seedOk ? "" : " warn"}` },
+      h("b", {}, s.reveal && s.reveal.seedOk ? "✓ Kura dürüst çekildi" : "Kura doğrulanamadı"),
+      h("span", {}, "Roller dağıtılmadan önce kuranın kilidi zincire yazıldı. Oyun bitince açıldı ve kilide uydu: kimse rolleri sonradan değiştirmedi.")),
+    h("div", { class: "will" },
+      h("b", {}, `${s.seals.memoCount} hamle · ${s.seals.txCount} mühür paketi`),
+      h("span", { class: "muted", style: "font-size:15px" }, pending ? `${pending} hamle daha zincire gidiyor; birkaç dakika içinde oturur.` : "Her gece hamlesi, her oy ve vasiyet Zcash ağına gizli notlar olarak yazıldı. Oyunun özet mührü hepsini tek parmak iziyle bağlar.")),
+    h("details", { class: "tech" },
+      h("summary", {}, "Teknik ayrıntı"),
+      h("div", { class: "mono" },
+        s.reveal && h("div", {}, `kura       ${s.reveal.seed} · kilit ${String(s.reveal.commit).slice(0, 12)}…`),
+        s.seals.recent.map((t) => h("div", {}, `paket      ${t.slice(0, 10)}…${t.slice(-8)}`)),
+        h("div", {}, `ağ         ${s.seals.chain === "zingo" ? "Zcash testnet" : "deneme (zincirsiz)"}`),
+        s.reveal && h("div", { style: "word-break:break-all" }, `görüntüleme anahtarı  ${String(s.reveal.ufvk).slice(0, 24)}…`))));
+  return {
+    theme: "night",
+    el: h("section", { class: "screen" },
+      h("div", { class: "bar" },
+        h("button", { class: "ghost small", onclick: () => { showIfsa = false; showSeal = false; render(); } }, "← Sonuç"),
+        h("span", { class: "seal" }, pending ? `● ${pending} yolda` : "● hepsi mühürlü")),
+      h("h1", {}, showSeal ? "Bu oyun zincirde." : "Kim, ne zaman, ne yaptı?"),
+      showSeal
+        ? sealBox
+        : h("div", { class: "story" }, story.length === 0
+          ? h("p", { class: "muted" }, "Hikâye hazırlanıyor…")
+          : story.map((c) => h("div", { class: "chapter" },
+            h("span", { class: "mono muted ch" }, c.title.toLocaleUpperCase("tr")),
+            c.lines.map((l) => h("div", { class: "sline" }, dot(l.sealed), h("span", {}, l.text)))))),
+      h("div", { class: "stack push" },
+        !showSeal && h("p", { class: "muted" }, "Kırmızı nokta = o hamle oyun sırasında mühürlendi. Sonradan kimse değiştiremez."),
+        h("button", { class: "ghost", onclick: () => { showSeal = !showSeal; render(); } }, showSeal ? "← Hikâyeye dön" : "Mühür ayrıntısı ▸"))),
   };
 }
 

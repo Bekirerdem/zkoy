@@ -52,7 +52,7 @@ let online = false;
 let ws = null;
 let cardOpen = false;
 let draft = { name: store.get("zkoy.name") || "", code: (pathCode || "").toUpperCase(), will: null };
-let myVerdictHint = null;
+let lastKey = null;
 
 function send(msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
@@ -127,6 +127,11 @@ function render() {
   else if (!session || !s || !m) view = viewEntry();
   else if (cardOpen && m.role) view = viewCard();
   else view = { LOBBY: viewLobby, ELECTION: viewElection, NIGHT: viewNight, DAWN: viewDawn, DAY: viewDay, EXECUTION: viewExecution, END: viewEnd }[s.phase]();
+  // Giriş animasyonu yalnız ekran değişince oynar; aynı ekranın tazelenmesi
+  // (her bot/oyuncu hamlesi) kartı yeniden döndürmesin.
+  const key = watchCode ? "perde" : !session || !s || !m ? "entry" : cardOpen && m.role ? "card" : `${s.phase}:${s.round}:${s.day && s.day.stage}`;
+  if (key === lastKey) view.el.classList.add("still");
+  lastKey = key;
   document.body.className = view.theme;
   app.replaceChildren(view.el);
   if (focus) {

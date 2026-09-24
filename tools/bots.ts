@@ -1,28 +1,43 @@
 // Prova botları: bir odaya N bot sokar, `me.can` ve meydana bakarak oynarlar.
-// Kullanım: bun tools/bots.ts <KOD> [adet=6] [ws://localhost:3131/ws]
+// Kullanım: bun tools/bots.ts <KOD> [adet=6] [ws://localhost:3131/ws] [--hizli]
 // Tek telefonla tam el provası için: odayı telefondan kur, botları sok, başlat.
+// Varsayılan insan temposu (hamle 4-10 sn, gündüz ilk 30 sn suçlama yok, bot
+// Muhtar faz geçirmeden 20 sn bekler); --hizli otomatik provalar içindir.
 
-const [code, countArg, urlArg] = process.argv.slice(2);
+const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const FAST = process.argv.includes("--hizli");
+const [code, countArg, urlArg] = args;
 if (!code) {
-  console.error("kullanım: bun tools/bots.ts <KOD> [adet=6] [ws-url]");
+  console.error("kullanım: bun tools/bots.ts <KOD> [adet=6] [ws-url] [--hizli]");
   process.exit(1);
 }
 const COUNT = Number(countArg ?? 6);
 const URL = urlArg ?? "ws://localhost:3131/ws";
 const NAMES = ["Hasan", "Fadime", "Rıza", "Nuriye", "Cemal", "Şükran", "Kâzım", "Hatice", "Veli", "Zehra", "Osman", "Emine", "Temel"];
+const DAY_QUIET_MS = FAST ? 0 : 30_000;
+const LEADER_WAIT_MS = FAST ? 0 : 20_000;
 
 const pick = <T,>(xs: T[]): T | undefined => xs[Math.floor(Math.random() * xs.length)];
-const later = (fn: () => void) => setTimeout(fn, 800 + Math.random() * 2200);
+const later = (fn: () => void) =>
+  setTimeout(fn, FAST ? 800 + Math.random() * 2200 : 4000 + Math.random() * 6000);
 
 function bot(i: number) {
   const ws = new WebSocket(URL);
   let s: any = null;
   let me: any = null;
   let busy = false;
+  let phaseKey = "";
+  let phaseSince = Date.now();
   const send = (m: unknown) => ws.send(JSON.stringify(m));
 
   function think() {
     if (!s || !me || busy) return;
+    const key = `${s.phase}:${s.round}`;
+    if (key !== phaseKey) {
+      phaseKey = key;
+      phaseSince = Date.now();
+    }
+    const inPhase = Date.now() - phaseSince;
     const can: string[] = me.can;
     const alive = s.players.filter((p: any) => p.alive && p.id !== me.pid).map((p: any) => p.id);
     const act = (m: any) => {
@@ -56,14 +71,14 @@ function bot(i: number) {
         const open = Object.entries(d.accusations).find(([who, x]) => who !== me.pid && x !== me.pid);
         if (open && Math.random() < 0.5) return act({ t: "act", a: "second", x: open[1] });
       }
-      if (d.stage === "free" && can.includes("accuse") && !d.accusations[me.pid] && Math.random() < 0.15) {
+      if (d.stage === "free" && inPhase >= DAY_QUIET_MS && can.includes("accuse") && !d.accusations[me.pid] && Math.random() < 0.15) {
         const target = pick(alive.filter((id: string) => !d.triedToday.includes(id)));
         if (target) return act({ t: "act", a: "accuse", x: target });
       }
     }
     if (can.includes("heir")) return act({ t: "act", a: "heir", x: pick(alive) });
     // Bot Muhtar ise masayı ilerletir (insan Muhtar'ı beklemek provayı kilitler).
-    if (me.isMuhtar) {
+    if (me.isMuhtar && inPhase >= LEADER_WAIT_MS) {
       if (can.includes("startDay")) return act({ t: "cmd", c: "startDay" });
       if (can.includes("nextRound")) return act({ t: "cmd", c: "nextRound" });
       if (can.includes("toVerdict")) return act({ t: "cmd", c: "toVerdict" });

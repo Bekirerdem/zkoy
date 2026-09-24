@@ -135,6 +135,7 @@ export class Room {
   /* ── kimlik ── */
 
   join(deviceKey: string, name: string): { pid: string; token: string } {
+    this.markAction();
     const clean = name.trim().slice(0, 16);
     if (!clean) throw new EngineError("ad boş olamaz");
     // Aynı cihaz lobiye yeniden girerse aynı koltuğu alır.
@@ -195,6 +196,7 @@ export class Room {
 
   act(pid: string, m: ActMsg): void {
     const s = this.state;
+    this.markAction();
     const need = (v: string | undefined): string => {
       if (!v) throw new EngineError("hedef seçilmedi");
       return v;
@@ -245,6 +247,7 @@ export class Room {
 
   cmd(pid: string, m: CmdMsg): void {
     const s = this.state;
+    this.markAction();
     let events: MemoEvent[] = [];
     switch (m.c) {
       case "start":
@@ -366,10 +369,17 @@ export class Room {
   }
 
   /** Olayları günlüğe + mühür kuyruğuna yaz; faz saatlerini, END'i işle; yayınla. */
+  /** Olay günlüğü hamlenin YAPILDIĞI fazı yazar (çözümün geçtiği fazı değil). */
+  private actionAt = { round: 0, phase: "LOBBY" };
+  private markAction() {
+    this.actionAt = { round: this.state.round, phase: this.state.phase };
+  }
+
   private commit(events: MemoEvent[]) {
     const s = this.state;
     if (events.length > 0) {
-      const ids = this.deps.db.logEvents(this.gameId, this.code, s.round, s.phase, events);
+      const at = this.actionAt;
+      const ids = this.deps.db.logEvents(this.gameId, this.code, at.round, at.phase, events);
       if (this.gameId !== null) for (const e of events) this.gameMemos.push(JSON.stringify(e.memo));
       this.deps.seals.enqueue(this.code, events, ids);
     }

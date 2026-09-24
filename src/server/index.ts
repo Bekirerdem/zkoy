@@ -169,9 +169,8 @@ export function startServer(opts: ServerOptions = {}) {
     const file = normalize(joinPath(webDir, rel));
     if (!file.startsWith(normalize(webDir)) || !existsSync(file))
       return new Response("bulunamadı", { status: 404 });
-    return new Response(Bun.file(file), {
-      headers: rel === "index.html" ? { "Cache-Control": "no-cache" } : {},
-    });
+    // Etkinlik süresince düzeltmeler anında telefonlara ulaşsın: her istekte doğrula.
+    return new Response(Bun.file(file), { headers: { "Cache-Control": "no-cache" } });
   }
 
   let qrLib: string | undefined;

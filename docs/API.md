@@ -1,7 +1,7 @@
 # ZKöy API v3 — WebSocket sözleşmesi
 
 > Web istemcisi ve Flutter uygulaması bu sözleşmeyi konuşur. Sunucu: `src/server/index.ts`.
-> v1 HTTP API'si `v1` dalında. Kapsam: salon modu (SPEC v3 §3), misafir giriş.
+> Kapsam: salon modu (SPEC v3 §3), misafir giriş. (v1'in HTTP API'si kaldırıldı.)
 
 ## Bağlantı
 

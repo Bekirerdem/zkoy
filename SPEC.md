@@ -1,7 +1,7 @@
 # ZKöy v3 — Ürün Spec'i
 
 > **ZKöy** = ZK + köy. Vampir Köylü on Zcash. Protokol katmanının adı **Mühür**.
-> Repo `Bekirerdem/zkoy` (tek geliştirme dalı `main`; v1 hackathon sürümü `v1` dalı ve `v1-hackathon` etiketi). Takım: Bekir (sunucu + Zcash) · Selinay (Flutter).
+> Repo `Bekirerdem/zkoy` (tek dal `main`; v1 hackathon dalı ve etiketi 25 Eylül 2026'da kaldırıldı, geçmişi `main`'de duruyor). Takım: Bekir (sunucu + Zcash) · Selinay (Flutter).
 > Bu dosya tek doğruluk kaynağı. Burada olmayan şey yapılmaz; kapsam tartışması çıkarsa buraya bakılır.
 > v1 (17 Ağu 2026) `docs/SPEC-v1.md`, v2 (2 Eyl 2026, yeniden tasarım) `docs/SPEC-v2.md` altında arşivdir. v3 bu ikisinin üstüne **ürünleştirme** katmanıdır; oyun kuralları v2'den gelir, yalnız §2'de işaretli değişiklikler yapılır.
 

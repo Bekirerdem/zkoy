@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the `main` branch is supported. It is what runs at [zkoy.fun](https://zkoy.fun). The `v1` branch and the `v1-hackathon` tag are the August 2026 prototype and receive no fixes.
+Only the `main` branch is supported. It is what runs at [zkoy.fun](https://zkoy.fun).
 
 ## Reporting a vulnerability
 

@@ -53,10 +53,10 @@ Every move comes back as a small JSON memo (`v:3`, room code, move type, round, 
             │  WebSocket                       │
             ▼                                  ▼
  ┌──────────────────────── Bun server (single process) ─────────────────────────┐
- │ game engine   pure state machine, no I/O; every move returns the memos to seal │
- │ room layer    phases, host/Muhtar authority, public vs private views           │
- │ SQLite        games, unique devices, event log with txids, room snapshots     │
- │ seal queue    durable, batched per room, retries, survives restarts           │
+ │ game engine   pure state machine; every move returns the memos to seal       │
+ │ room layer    phases, host and Muhtar authority, public vs private views     │
+ │ SQLite        games, unique devices, event log with txids, snapshots         │
+ │ seal queue    durable, batched per room, retries, survives restarts          │
  └──────────────────────────────────────────────────────────────────────────────┘
             │
             ▼

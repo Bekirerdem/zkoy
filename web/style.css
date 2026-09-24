@@ -270,7 +270,11 @@ body.day .dots span.on { background: #1C1B29; }
 .okbox b { color: #D7F0E6; }
 .okbox.warn { background: #2A1418; border-color: #6E2A26; color: #E6CFCB; }
 details.tech summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); }
-details.tech .mono { font-size: 12px; line-height: 1.6; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+details.tech .mono { font-size: 12px; line-height: 1.6; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
+.kvcopy { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: start; }
+.kvcopy span { grid-column: 1 / -1; color: var(--soft); }
+.kvcopy code { font-family: var(--m-font); font-size: 11px; word-break: break-all; color: var(--muted); max-height: 5.2em; overflow: hidden; }
+.kvcopy .link { min-height: 32px; font-size: 12px; }
 
 /* ── perde (büyük ekran) ── */
 body.screen-mode #app { max-width: 1200px; }

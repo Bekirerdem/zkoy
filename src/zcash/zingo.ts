@@ -87,7 +87,7 @@ export function extractLastJson(out: string): unknown {
 
 // NOT (17 Ağu): zingo süreçlerinin önceliği, istek yolunu asan per-spawn
 // PowerShell yerine sunucudan bağımsız bir gözcü döngüyle düşürülür
-// (bkz. docs/DEMO.md — "öncelik gözcüsü"). ZK proving aksi halde tüm
+// (bkz. docs/archive/DEMO-v1.md — "öncelik gözcüsü"). ZK proving aksi halde tüm
 // çekirdekleri doyurup faz sayaçlarını geciktiriyor.
 
 /** One in-flight process per data-dir — zingo wallets are single-writer. */

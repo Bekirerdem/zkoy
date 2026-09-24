@@ -458,6 +458,11 @@ function viewLobby() {
   };
 }
 
+function copyText(text, done) {
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(done), () => toast(text));
+  else toast(text);
+}
+
 function copyLink(link) {
   const ok = () => toast("Link kopyalandı.");
   if (navigator.share) navigator.share({ title: "ZKöy", text: "Masaya otur:", url: link }).catch(() => {});
@@ -766,10 +771,18 @@ function viewIfsa() {
     h("details", { class: "tech" },
       h("summary", {}, "Teknik ayrıntı"),
       h("div", { class: "mono" },
-        s.reveal && h("div", {}, `kura       ${s.reveal.seed} · kilit ${String(s.reveal.commit).slice(0, 12)}…`),
-        s.seals.recent.map((t) => h("div", {}, `paket      ${t.slice(0, 10)}…${t.slice(-8)}`)),
-        h("div", {}, `ağ         ${s.seals.chain === "zingo" ? "Zcash testnet" : "deneme (zincirsiz)"}`),
-        s.reveal && h("div", { style: "word-break:break-all" }, `görüntüleme anahtarı  ${String(s.reveal.ufvk).slice(0, 24)}…`))));
+        h("p", { class: "muted", style: "font-family:var(--b-font)" }, "Kendin doğrula: sha256(\"kura|tuz\") kilide eşit olmalı. Görüntüleme anahtarıyla odanın bütün hamleleri herhangi bir Zcash cüzdanında okunur."),
+        s.reveal && [
+          ["kura", String(s.reveal.seed)],
+          ["tuz", String(s.reveal.salt)],
+          ["kilit", String(s.reveal.commit)],
+          ["görüntüleme anahtarı", String(s.reveal.ufvk)],
+        ].map(([k, v]) => h("div", { class: "kvcopy" },
+          h("span", {}, k),
+          h("code", {}, v),
+          h("button", { class: "link", onclick: () => copyText(v, `${k} kopyalandı.`) }, "kopyala"))),
+        s.seals.recent.map((t) => h("div", {}, `paket  ${t}`)),
+        h("div", {}, `ağ  ${s.seals.chain === "zingo" ? "Zcash testnet" : "deneme (zincirsiz)"}`))));
   return {
     theme: "night",
     el: h("section", { class: "screen" },

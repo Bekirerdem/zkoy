@@ -47,6 +47,11 @@ v2 §1 aynen geçerlidir (kompozisyon tablosu, roller, seçim, faz döngüsü, d
 
 Sanık oy kullanmayınca "Muhtar ağırlığı kendi davasında sayılır mı" sorusu düşer: sayılmaz, çünkü oy yok. Karar oyu yarı hesabı yaşayan **oy kullanabilenlerin** toplam ağırlığı üzerinden yapılır (sanık hariç).
 
+**25 Eylül 2026 güncellemesi (ilk telefon testleri):**
+- **Dava eşiği.** İki kişiyle dava açılmaz. Suçlayan dahil destek ağırlığı `max(3, ⌈yaşayan/3⌉)`'e ulaşınca dava açılır; sanık dışındaki kişi sayısını geçemez (4-9 yaşayan → 3, 10-12 → 4, 13-15 → 5). Muhtar'ın desteği oyu kadar sayılır (2; 13+ oyuncuda 3). Oyuncu aynı anda tek kişiyi destekler, başkasını suçlar ya da desteklerse desteği oraya geçer. Dava açılışı `trial` memo'suyla mühürlenir.
+- **Sanık oyu oda ayarı değil.** Kural sabit: sanık kendi davasında oy kullanmaz. Oda kurma ekranından kaldırıldı; yerine **perde var/yok** gelecek.
+- **Seçim eşitliği** ya da adaysızlık kurayla çözülür ve masaya duyurulur ("A ile B 3-3 berabere, ebe kura çekti").
+
 ### 2.2 Muhtar
 
 - **Her oyunda vardır.** Seçim isteğe bağlı değil; aday yoksa kura, eşitlikte tohumlu kura. Soru "seçelim mi" değil "kim olsun".

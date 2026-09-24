@@ -174,6 +174,7 @@ export function startServer(opts: ServerOptions = {}) {
     });
   }
 
+  let qrLib: string | undefined;
   let balanceCache: { v: number | null; at: number } = { v: null, at: 0 };
   async function opsBalance(): Promise<number | null> {
     if (Date.now() - balanceCache.at > 60_000) balanceCache = { v: await zcash.balance(), at: Date.now() };
@@ -190,6 +191,13 @@ export function startServer(opts: ServerOptions = {}) {
         return new Response("upgrade gerekli", { status: 400 });
       }
       if (url.pathname === "/health") return Response.json({ ok: true, chain: zcash.kind });
+      if (url.pathname === "/qr.js") {
+        // qrcode-generator'ı tarayıcı globali olarak sar (bekleme ekranındaki QR).
+        qrLib ??= `(function(){var exports={};var module={exports:exports};\n${await Bun.file(
+          "node_modules/qrcode-generator/dist/qrcode.js",
+        ).text()}\nwindow.qrcode=module.exports;})();`;
+        return new Response(qrLib, { headers: { "Content-Type": "text/javascript" } });
+      }
       if (url.pathname === "/stats")
         return Response.json({
           ...db.stats(),

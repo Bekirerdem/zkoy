@@ -17,6 +17,8 @@ describe("ifşa partisi", () => {
     expect(accusative("Onur")).toBe("Onur'u");
     expect(accusative("Şükran")).toBe("Şükran'ı");
     expect(accusative("Bekir")).toBe("Bekir'i");
+    expect(accusative("Cemal")).toBe("Cemal'i");
+    expect(accusative("Kemal")).toBe("Kemal'i");
   });
 
   test("oyun sonunda hikâye: gece, dava ve mühür durumu", async () => {
@@ -33,8 +35,10 @@ describe("ifşa partisi", () => {
     const vamp = s.players.find((p) => p.role === "vampir")!.id;
     const doc = s.players.find((p) => p.role === "doktor")!.id;
     const prey = s.players.find((p) => p.role === "koylu" && p.id !== pids[0])!.id;
-    room.act(vamp, { t: "act", a: "night", x: prey });
+    // doktor fikir değiştirir: hikâyede yalnız son seçimi görünmeli
+    room.act(doc, { t: "act", a: "night", x: prey });
     room.act(doc, { t: "act", a: "night", x: doc });
+    room.act(vamp, { t: "act", a: "night", x: prey });
     room.cmd(pids[0]!, { t: "cmd", c: "startDay" });
     const others = s.players.filter((p) => p.alive && p.id !== vamp).map((p) => p.id);
     room.act(others[0]!, { t: "act", a: "accuse", x: vamp });
@@ -49,6 +53,8 @@ describe("ifşa partisi", () => {
     expect(text).toContain("(vampir)");
     expect(text).toContain("ölü bulundu");
     expect(text).toContain("asıldı: vampirdi");
+    expect(text).toContain("(doktor) kendini korudu.");
+    expect(text.match(/\(doktor\)/g)?.length).toBe(1);
     expect(pub.story!.map((c) => c.title)).toEqual(["Seçim", "1. gece", "1. gün"]);
     expect(pub.story!.every((c) => c.lines.every((l) => l.sealed))).toBe(true);
   });

@@ -186,6 +186,10 @@ function render() {
   if (key === lastKey) view.el.classList.add("still");
   lastKey = key;
   document.body.className = view.theme;
+  // Sayfanın en dış zemini ve tarayıcı çubuğu da temayla döner (iOS esnemesinde beyaz görünmesin).
+  const ground = view.theme.includes("day") ? "#FAF7EF" : "#11101B";
+  document.documentElement.style.backgroundColor = ground;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", ground);
   app.replaceChildren(view.el);
   if (focus) {
     const el = document.getElementById(focus);
@@ -699,11 +703,13 @@ function viewEnd() {
           h("span", { class: "who", style: "flex-grow:1" }, p.name + (p.id === m.pid ? " (sen)" : "")),
           badgeOf(p.id).filter((b) => b !== "kazanan").map((b) => h("span", { class: "note", style: "color:var(--gold)" }, b)),
           h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase("tr"))))),
-      h("button", { class: "reveal-cta", onclick: () => { showIfsa = true; render(); } },
-        h("span", { class: "t" }, "● İFŞA PARTİSİ"),
-        h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:24px" }, "Kim, ne zaman, ne yaptı?"),
-        h("span", { class: "muted" }, "Her gece hamlesi ve her oy, mühürlü haliyle.")),
-      h("button", { class: "btn push", onclick: newRoom }, "Yeni oda")),
+      // İfşa partisi doğrudan burada: oyun biter bitmez okunur, ek dokunuş yok.
+      h("div", { class: "stack", style: "gap:14px;margin-top:8px" },
+        h("span", { class: "eyebrow", style: "color:var(--seal)" }, "● İfşa partisi"),
+        h("h2", { class: "reveal-title" }, "Kim, ne zaman, ne yaptı?"),
+        storyBlock()),
+      h("button", { class: "ghost", onclick: () => { showIfsa = true; showSeal = true; render(); } }, "Mühür ayrıntısı ▸"),
+      h("button", { class: "btn", onclick: newRoom }, "Yeni oda")),
   };
 }
 
@@ -719,10 +725,23 @@ function newRoom() {
 
 /* ── ifşa partisi + mühür ayrıntısı (tasarım 21-22) ── */
 
-function viewIfsa() {
+const sealDot = (sealed) => h("span", { class: `sdot${sealed ? "" : " open"}`, title: sealed ? "mühürlendi" : "zincire gidiyor" });
+
+/** Gece gece, gün gün hikâye; oyun sonu ekranında ve ifşa görünümünde ortak. */
+function storyBlock() {
   const story = s.story || [];
+  if (story.length === 0) return h("p", { class: "muted" }, "Hikâye hazırlanıyor…");
+  return h("div", { class: "stack", style: "gap:12px" },
+    h("div", { class: "story" }, story.map((c) => h("div", { class: "chapter" },
+      h("span", { class: "mono muted ch" }, c.title.toLocaleUpperCase("tr")),
+      c.lines.map((l) => h("div", { class: "sline" }, sealDot(l.sealed), h("span", {}, l.text)))))),
+    h("p", { class: "muted", style: "font-size:13px" }, s.seals.pending
+      ? `Kırmızı nokta = mühürlendi. Boş nokta = zincire gidiyor (${s.seals.pending} hamle yolda).`
+      : "Kırmızı nokta = o hamle oyun sırasında mühürlendi. Sonradan kimse değiştiremez."));
+}
+
+function viewIfsa() {
   const pending = s.seals.pending;
-  const dot = (sealed) => h("span", { class: `sdot${sealed ? "" : " open"}`, title: sealed ? "mühürlendi" : "zincire gidiyor" });
   const sealBox = h("div", { class: "stack", style: "gap:12px" },
     h("div", { class: `okbox${s.reveal && s.reveal.seedOk ? "" : " warn"}` },
       h("b", {}, s.reveal && s.reveal.seedOk ? "✓ Kura dürüst çekildi" : "Kura doğrulanamadı"),
@@ -743,17 +762,9 @@ function viewIfsa() {
       h("div", { class: "bar" },
         h("button", { class: "ghost small", onclick: () => { showIfsa = false; showSeal = false; render(); } }, "← Sonuç"),
         h("span", { class: "seal" }, pending ? `● ${pending} yolda` : "● hepsi mühürlü")),
-      h("h1", {}, showSeal ? "Bu oyun zincirde." : "Kim, ne zaman, ne yaptı?"),
-      showSeal
-        ? sealBox
-        : h("div", { class: "story" }, story.length === 0
-          ? h("p", { class: "muted" }, "Hikâye hazırlanıyor…")
-          : story.map((c) => h("div", { class: "chapter" },
-            h("span", { class: "mono muted ch" }, c.title.toLocaleUpperCase("tr")),
-            c.lines.map((l) => h("div", { class: "sline" }, dot(l.sealed), h("span", {}, l.text)))))),
-      h("div", { class: "stack push" },
-        !showSeal && h("p", { class: "muted" }, "Kırmızı nokta = o hamle oyun sırasında mühürlendi. Sonradan kimse değiştiremez."),
-        h("button", { class: "ghost", onclick: () => { showSeal = !showSeal; render(); } }, showSeal ? "← Hikâyeye dön" : "Mühür ayrıntısı ▸"))),
+      h("h1", {}, "Bu oyun zincirde."),
+      sealBox,
+      h("button", { class: "ghost push", onclick: () => { showIfsa = false; showSeal = false; render(); } }, "← Sonuca dön")),
   };
 }
 

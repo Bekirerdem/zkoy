@@ -27,9 +27,13 @@ const BACK = new Set([..."aıou"]);
 const FRONT = new Set([..."eiöü"]);
 const VOWELS = new Set([..."aıoueiöüâîû"]);
 
-/** Belirtme hâli: Hasan'ı, Ali'yi, Rıza'yı, Kâzım'ı, Nuriye'yi, Gül'ü. */
+/** İnce "l" ile biten, ünlü uyumuna uymayan yaygın isimler: Cemal'i, Kemal'i. */
+const FRONT_L = new Set(["cemal", "kemal", "celal", "hilal", "bilal", "iclal", "vişal", "kamal", "nihal", "cemil", "kemâl", "celâl"]);
+
+/** Belirtme hâli: Hasan'ı, Ali'yi, Rıza'yı, Kâzım'ı, Nuriye'yi, Gül'ü, Cemal'i. */
 export function accusative(name: string): string {
   const lower = name.toLocaleLowerCase("tr");
+  if (FRONT_L.has(lower)) return `${name}'i`;
   let last = "e";
   for (const ch of lower) if (VOWELS.has(ch)) last = ch;
   const norm = last === "â" ? "a" : last === "î" ? "i" : last === "û" ? "u" : last;
@@ -67,8 +71,11 @@ export function buildStory(
     }
     return c;
   };
-  // Karar oyları davaya toplanır, tek satırda anlatılır.
-  let trial: { round: number; accused: string; yes: string[]; no: string[]; sealed: boolean } | null = null;
+  // Karar oyları davaya toplanır, tek satırda anlatılır; fikir değiştiren
+  // oyuncunun yalnız son oyu sayılır (motor da böyle sayar).
+  let trial: { round: number; accused: string; votes: Map<string, boolean>; sealed: boolean } | null = null;
+  // Gece hamlesi değiştirilebilir: aynı turda aynı oyuncunun satırı güncellenir.
+  const nightLine = new Map<string, StoryLine>();
 
   for (const row of rows) {
     const m = JSON.parse(row.memo) as Record<string, unknown>;
@@ -92,7 +99,16 @@ export function buildStory(
               : who === "gozcu"
                 ? `${name(m.p)} (gözcü) ${accusative(name(m.x))} sorguladı.`
                 : `${name(m.p)} bir hamle yaptı.`;
-        night().lines.push({ text, sealed });
+        const key = `${r}:${String(m.p)}`;
+        const prev = nightLine.get(key);
+        if (prev) {
+          prev.text = text;
+          prev.sealed = prev.sealed && sealed;
+        } else {
+          const line = { text, sealed };
+          nightLine.set(key, line);
+          night().lines.push(line);
+        }
         break;
       }
       case "seerr":
@@ -106,19 +122,22 @@ export function buildStory(
         break;
       case "second":
         day().lines.push({ text: `${name(m.p)} destekledi: ${name(m.x)} yargılandı.`, sealed });
-        trial = { round: r, accused: String(m.x), yes: [], no: [], sealed: true };
+        trial = { round: r, accused: String(m.x), votes: new Map(), sealed: true };
         break;
       case "verdict":
         if (trial) {
-          (m.y ? trial.yes : trial.no).push(name(m.p));
+          trial.votes.set(String(m.p), !!m.y);
           trial.sealed &&= sealed;
         }
         break;
       case "result": {
         if (m.lynched || m.acq) {
-          const votes = trial
-            ? ` Assın: ${trial.yes.join(", ") || "kimse"}. Asmasın: ${trial.no.join(", ") || "kimse"}.`
-            : "";
+          let votes = "";
+          if (trial) {
+            const who = (y: boolean) =>
+              [...trial!.votes].filter(([, v]) => v === y).map(([p]) => name(p)).join(", ") || "kimse";
+            votes = ` Assın: ${who(true)}. Asmasın: ${who(false)}.`;
+          }
           const who = String(m.lynched ?? m.acq);
           const was = typeof m.role === "string" ? WAS[m.role as Role] : null;
           day().lines.push({

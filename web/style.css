@@ -110,7 +110,7 @@ input.code { font-family: var(--m-font); letter-spacing: 0.2em; text-transform: 
 .entry-hero { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; min-height: 42dvh; }
 .lantern { width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle, var(--gold) 0%, rgba(244,183,40,0.35) 45%, rgba(244,183,40,0) 72%); animation: flicker 3.2s ease-in-out infinite; }
 @keyframes flicker { 0%,100% { transform: scale(1); opacity: 1; } 45% { transform: scale(0.94); opacity: 0.85; } 60% { transform: scale(1.03); } }
-body.night.entry { background: radial-gradient(120% 60% at 50% 0%, #2A2340 0%, #11101B 62%) fixed; }
+body.night.entry { background: radial-gradient(120% 60% at 50% 0%, #2A2340 0%, #11101B 62%) fixed #11101B; }
 
 /* ── oda bekleme ── */
 .qr { align-self: center; width: 220px; height: 220px; border-radius: 20px; background: #FAF7EF; padding: 16px; }
@@ -150,7 +150,7 @@ body.night.entry { background: radial-gradient(120% 60% at 50% 0%, #2A2340 0%, #
 .cand .n { font-family: var(--m-font); font-size: 18px; color: var(--gold); }
 
 /* ── şafak ── */
-body.day.dawn { background: linear-gradient(180deg, #F6D98A 0%, #FAF7EF 38%) fixed; }
+body.day.dawn { background: linear-gradient(180deg, #F6D98A 0%, #FAF7EF 38%) fixed #FAF7EF; }
 .dawn-hero { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
 .will { border-radius: 16px; background: var(--surface); border: 1px solid var(--line); padding: 18px; display: flex; flex-direction: column; gap: 8px; }
 .will q { font-family: var(--d-font); font-size: 20px; line-height: 1.35; quotes: "“" "”"; }
@@ -185,7 +185,7 @@ body.day.dawn { background: linear-gradient(180deg, #F6D98A 0%, #FAF7EF 38%) fix
 .chip.n { border: 0; background: #E9E2D0; color: #1C1B29; }
 
 /* ── son ── */
-body.night.end { background: radial-gradient(110% 45% at 50% 0%, #3D3212 0%, #11101B 65%) fixed; }
+body.night.end { background: radial-gradient(110% 45% at 50% 0%, #3D3212 0%, #11101B 65%) fixed #11101B; }
 .ledger { border-radius: 18px; background: var(--surface); border: 1px solid var(--line); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .ledger .t { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--seal); }
 .ledger a { color: var(--gold); font-weight: 600; text-decoration: none; }
@@ -205,8 +205,8 @@ body.night.end { background: radial-gradient(110% 45% at 50% 0%, #3D3212 0%, #11
 /* ── ebe ── */
 .ebe-title { font-size: clamp(48px, 15vw, 60px); line-height: 0.92; letter-spacing: -0.035em; }
 .ebe-title.big { font-size: clamp(56px, 18vw, 72px); letter-spacing: -0.04em; }
-body.night.ebe-gece { background: radial-gradient(60% 30% at 50% 38%, #1B1730 0%, #050409 70%) fixed; }
-body.night.ebe-sec { background: radial-gradient(100% 50% at 50% 0%, #2A2340 0%, #11101B 65%) fixed; }
+body.night.ebe-gece { background: radial-gradient(60% 30% at 50% 38%, #1B1730 0%, #050409 70%) fixed #050409; }
+body.night.ebe-sec { background: radial-gradient(100% 50% at 50% 0%, #2A2340 0%, #11101B 65%) fixed #11101B; }
 .lantern.dim { width: 40px; height: 40px; opacity: 0.7; }
 .facts { display: flex; flex-direction: column; gap: 14px; font-size: 17px; line-height: 1.45; color: var(--soft); }
 .facts > div { display: flex; gap: 14px; }
@@ -254,6 +254,7 @@ body.day .dots span.on { background: #1C1B29; }
 .reveal-cta:active { transform: scale(0.98); }
 .reveal-cta .t { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--seal); }
 .reveal-cta:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.reveal-title { margin: 0; font-family: var(--d-font); font-weight: 800; font-size: 32px; line-height: 1; letter-spacing: -0.02em; }
 .story { display: flex; flex-direction: column; gap: 18px; }
 .chapter { display: flex; flex-direction: column; gap: 8px; }
 .chapter .ch { font-size: 12px; letter-spacing: 0.1em; }

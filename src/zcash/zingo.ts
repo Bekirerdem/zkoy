@@ -33,7 +33,9 @@ const WALLETS_ROOT =
   process.env.ZKOY_WALLETS_ROOT ?? joinPath(homedir(), ".zkoy-wallets");
 const SERVER = process.env.ZKOY_LWD ?? "https://testnet.zec.rocks:443";
 const NET = process.env.ZKOY_NET ?? "testnet";
-const DUST_ZATS = 10_000;
+// Sıfır değerli memo çıkışı testnet'te kabul ediliyor (24 Eyl, tx 6af293be…):
+// mühür yalnız ücrete mal olur. Gerekirse env ile toz eklenir.
+const DUST_ZATS = Number(process.env.ZKOY_DUST_ZATS ?? 0);
 
 /**
  * `balance` prints `confirmed_<pool>_balance: 215_000` lines, not JSON.

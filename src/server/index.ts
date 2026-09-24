@@ -176,13 +176,22 @@ export function startServer(opts: ServerOptions = {}) {
 
   let qrLib: string | undefined;
   let balanceCache: { v: number | null; at: number } = { v: null, at: 0 };
-  async function opsBalance(): Promise<number | null> {
-    if (Date.now() - balanceCache.at > 60_000) balanceCache = { v: await zcash.balance(), at: Date.now() };
+  let balanceRefreshing = false;
+  /** Never await the wallet here: a seal send holds the ops lock for a minute. */
+  function opsBalance(): number | null {
+    if (Date.now() - balanceCache.at > 60_000 && !balanceRefreshing) {
+      balanceRefreshing = true;
+      void zcash
+        .balance()
+        .then((v) => (balanceCache = { v, at: Date.now() }))
+        .finally(() => (balanceRefreshing = false));
+    }
     return balanceCache.v;
   }
 
   server = Bun.serve<WsData>({
     port: opts.port ?? Number(process.env.ZKOY_PORT ?? 3131),
+    idleTimeout: 30,
     async fetch(req, srv) {
       const url = new URL(req.url);
       if (url.pathname === "/ws") {
@@ -203,7 +212,7 @@ export function startServer(opts: ServerOptions = {}) {
           ...db.stats(),
           liveRooms: rooms.size,
           chain: zcash.kind,
-          opsBalanceZat: await opsBalance(),
+          opsBalanceZat: opsBalance(),
           height: await zcash.height(),
         });
       return serveStatic(url.pathname);

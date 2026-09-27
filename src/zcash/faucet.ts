@@ -60,34 +60,78 @@ export async function claim(address: string): Promise<unknown> {
   return res.json();
 }
 
-function lastClaim(): number {
+const FAUZEC = process.env.ZKOY_FAUZEC_URL ?? "https://fauzec.com";
+
+/**
+ * Zcash Foundation musluğu (fauzec.com): adres başı 1 TAZ / 24 s, CAPTCHA'sız
+ * belgeli API. `runtime_unavailable` = musluk motoru kapalı (25 Eyl'de görüldü).
+ */
+export async function claimFauzec(address: string): Promise<unknown> {
+  const res = await fetch(`${FAUZEC}/api/v1/claim`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ network: "testnet", address }),
+  });
+  const out = (await res.json()) as { outcome?: string; error_code?: string };
+  if (out.outcome !== "accepted") throw new Error(`fauzec reddetti: ${JSON.stringify(out)}`);
+  return out;
+}
+
+interface FaucetSource {
+  name: string;
+  claim: (address: string) => Promise<unknown>;
+}
+
+const SOURCES: FaucetSource[] = [
+  { name: "fauzec", claim: claimFauzec },
+  { name: "jinolabs", claim },
+];
+
+type FaucetState = Record<string, { at: number; out?: unknown; error?: string }>;
+
+function readState(): FaucetState {
   try {
-    return (JSON.parse(readFileSync(STATE_FILE, "utf8")) as { at: number }).at;
+    const raw = JSON.parse(readFileSync(STATE_FILE, "utf8"));
+    // Eski biçim: tek kaynak {at, out} → jinolabs.
+    return typeof raw?.at === "number" ? { jinolabs: raw } : raw;
   } catch {
-    return 0;
+    return {};
   }
 }
 
-/** Hourly check; claims when balance < threshold and 24 h passed since the last claim. */
+function writeState(state: FaucetState) {
+  if (!existsSync(dirname(STATE_FILE))) mkdirSync(dirname(STATE_FILE), { recursive: true });
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+/**
+ * Saatlik kontrol: bakiye yedek eşiğinin altındaysa her musluktan kendi 24
+ * saatlik hakkı dolduğunda talep eder. Eşik (varsayılan 2 TAZ ≈ 650 oyun)
+ * aşılınca durur; musluk ortak kaynak, ihtiyaçtan fazlası biriktirilmez.
+ * Başarısız talep de zamanlanır (bir saat sonra yeniden denenir).
+ */
 export function startFaucetLoop(
   zcash: ZcashService,
   opsAddress: string,
-  { thresholdZat = 5_000_000, everyMs = 3_600_000 } = {},
+  { reserveZat = Number(process.env.ZKOY_FAUCET_RESERVE_ZAT ?? 200_000_000), everyMs = 3_600_000 } = {},
 ): ReturnType<typeof setInterval> {
   const tick = async () => {
-    try {
-      const bal = await zcash.balance();
-      if (bal === null || bal >= thresholdZat) return;
-      if (Date.now() - lastClaim() < DAY_MS) {
-        console.error(`[faucet] ops bakiyesi düşük (${bal} zat), talep hakkı henüz dolmadı`);
-        return;
+    const bal = await zcash.balance().catch(() => null);
+    if (bal === null || bal >= reserveZat) return;
+    const state = readState();
+    for (const src of SOURCES) {
+      const last = state[src.name];
+      if (last && !last.error && Date.now() - last.at < DAY_MS) continue;
+      if (last?.error && Date.now() - last.at < everyMs) continue;
+      try {
+        const out = await src.claim(opsAddress);
+        state[src.name] = { at: Date.now(), out };
+        console.log(`[faucet] ${src.name} talep edildi (bakiye ${bal} zat):`, JSON.stringify(out).slice(0, 160));
+      } catch (e) {
+        state[src.name] = { at: Date.now(), error: String(e).slice(0, 300) };
+        console.error(`[faucet] ${src.name} başarısız:`, String(e).slice(0, 300));
       }
-      const out = await claim(opsAddress);
-      if (!existsSync(dirname(STATE_FILE))) mkdirSync(dirname(STATE_FILE), { recursive: true });
-      writeFileSync(STATE_FILE, JSON.stringify({ at: Date.now(), out }));
-      console.log(`[faucet] talep edildi (bakiye ${bal} zat):`, JSON.stringify(out).slice(0, 200));
-    } catch (e) {
-      console.error("[faucet] talep başarısız:", String(e).slice(0, 300));
+      writeState(state);
     }
   };
   void tick();

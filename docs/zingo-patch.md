@@ -84,6 +84,28 @@ Değişen yerler:
 | `zkoy-dev` (upstream dev HEAD) | 3,5 s | 3 dk 10 s |
 | `zakura-common` | **1,0 s** | 2 dk |
 
+## NU7 yükseltmesi (5 Eki 2026, `bae97206a`)
+
+NU7 testnet'te 4.465.026'da devreye girdi (dal ID `0x77190AD9`). Zakura 1.0.0
+NU7'yi bayrak arkasında tutuyordu; **Zakura 2.2.0** testnet yüksekliğini taşıyor.
+Upstream zingolib'e rebase yapılmadı (1316 commit; `clearnet` → `nakednet`
+yeniden adlandırması ve sürekli senkron `zingo.ts` oturumunu bozardı), yalnız
+yığın yükseltildi:
+
+- `orchard`, `sapling-crypto`, `zcash_primitives`, `zcash_proofs`, `zcash_keys`,
+  `jubjub` → `=2.2.0`; `zcash_client_backend` → `=0.1.0-rc7`.
+- 2.x'te `zcash_protocol`, `zcash_address`, `zcash_transparent` de Zakura'dan
+  gelir (`zakura-protocol`, `zakura-address`, `zakura-transparent`, `=2.2.0`).
+  Kural aynı: grafikte `zcash_protocol` 0.10 kopyası kalmamalı.
+- `config.rs` regtest eşlemesine `NetworkUpgrade::Nu7 => None` kolu.
+- rc7'nin yeni `WalletWrite::notify_transaction_enhancement_not_found`'ı
+  `unimplemented!()` (zcb'nin zenginleştirme döngüsünü kullanmıyoruz).
+- Vendor `zcash_pool_migration` aynı yığına (`=2.2.0`, `pczt` rc4, rc7).
+
+Kanıt: VPS'te yeni ikiliyle 0 zat memo self-send, blok 4.468.031, v6 tx, ücret
+10.000 zat. Eski ikili `/home/zkoy/zingo-cli.pre-nu7`, eski cüzdan
+`/home/zkoy/.zingo-testnet.pre-nu7`.
+
 ## Yeniden derleme
 
 ```powershell

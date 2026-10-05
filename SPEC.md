@@ -227,6 +227,8 @@ Tüm memo'larda `v:3`, `g` (oda kodu). JSON ≤ 512 B. Motor bugün `v:2` üreti
 
 25 saniyelik blok gelirse `DEFAULT_TX_EXPIRY_DELTA` (40 blok) 120'ye çekilir; aksi hâlde expired-tx rehin vakası üç kat sıklaşır. NU7 tx formatını değiştirmiyor, memo protokolü etkilenmez.
 
+**5 Eki durumu:** NU7 testnet'te aktif (4.465.026), sunucu Zakura 2.2.0 ile mühürlüyor (`docs/zingo-patch.md`). Blok aralığı ~19 s; sabit Zakura'da hâlâ 40 blok (~13 dk). Mühür bir sonraki bloğa girdiği ve `zingo.ts` süresi dolan tx'i kendisi temizlediği için şimdilik değiştirilmedi; mainnet'e geçişte yeniden bakılır.
+
 ---
 
 ## 10. Güvenlik (7 Eyl repo denetimi)

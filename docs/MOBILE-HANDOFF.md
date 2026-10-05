@@ -36,6 +36,6 @@ Hedef: ZKöy'ün Flutter uygulaması, **iOS App Store** (önce) ve Google Play. 
 
 ## Bilinen açıklar ve bağımlılıklar
 
-- 🔴 **NU7 (6 Ekim testnet):** sunucunun zingo-cli forku NU7'yi tanımıyor. 6 Ekim'den sonra oyunlar oynanır ama mühürler zincire gitmez (kuyrukta bekler). Bekir'in yapacağı fork yükseltmesi (Zakura Common 2.0 + client-backend rc7) bitene kadar uygulama testleri mühürsüz geçer; oyun akışı etkilenmez.
+- ✅ **NU7 (5 Ekim):** sunucu NU7'ye yükseltildi (Zakura 2.2.0); mühürler testnet'e gidiyor. Uygulama tarafını etkilemez.
 - Perde (büyük ekran) modu tasarlandı, kodlanmadı. Uygulama için gerekmiyor; telefon "kumanda" görünümü perde kodlanınca eklenir.
 - Sözleşmede değişiklik gerekirse önce `docs/API.md` güncellenir, web ve uygulama aynı sözleşmeyi konuşur.

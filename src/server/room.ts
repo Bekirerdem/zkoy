@@ -401,14 +401,17 @@ export class Room {
 
   private commit(events: MemoEvent[]) {
     const s = this.state;
+    const opensNight =
+      s.phase === "NIGHT" && events.some((e) => e.memo.t === "muhtar" || (e.memo.t === "phase" && e.memo.ph === "NIGHT"));
+    // Tur başına bir tx: yeni gece açılınca önceki tur (ya da seçim) mühürlenir.
+    if (opensNight) this.deps.seals.release(this.code);
     if (events.length > 0) {
       const at = this.actionAt;
       const ids = this.deps.db.logEvents(this.gameId, this.code, at.round, at.phase, events);
       if (this.gameId !== null) for (const e of events) this.gameMemos.push(JSON.stringify(e.memo));
       this.deps.seals.enqueue(this.code, events, ids);
     }
-    if (s.phase === "NIGHT" && events.some((e) => e.memo.t === "muhtar" || (e.memo.t === "phase" && e.memo.ph === "NIGHT")))
-      this.nightStartedAt = Date.now();
+    if (opensNight) this.nightStartedAt = Date.now();
     if (s.phase === "END" && this.gameId !== null && events.some((e) => e.memo.t === "phase" && e.memo.ph === "END"))
       this.finish();
     this.deps.db.saveSnapshot(this.code, this.snapshot());
@@ -424,6 +427,7 @@ export class Room {
     };
     const ids = this.deps.db.logEvents(this.gameId, this.code, this.state.round, "END", [root]);
     this.deps.seals.enqueue(this.code, [root], ids);
+    this.deps.seals.release(this.code);
     this.deps.db.endGame(this.gameId!, this.state.winner, h);
   }
 }

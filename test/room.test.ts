@@ -80,6 +80,23 @@ describe("Room", () => {
     expect(pub.seals.memoCount).toBeGreaterThan(20);
   });
 
+  test("tur başına bir tx: seçim + her gece açılışı + son", async () => {
+    const { room, d, pids } = await lobby(8);
+    room.cmd(pids[0]!, { t: "cmd", c: "start" });
+    await d.seals.flush();
+    expect(d.zcash.sent.length).toBe(0); // seçim bitmeden zincire bir şey gitmez
+    await playOut(room, pids[0]!);
+    await d.seals.flush();
+    const batches = d.zcash.sent.map((b) => b.events.map((e) => e.memo));
+    const opensNight = (m: { t: string; ph?: string }) => m.t === "muhtar" || (m.t === "phase" && m.ph === "NIGHT");
+    const nights = batches.flat().filter((m) => m.t === "muhtar" || (m.t === "phase" && m.ph === "NIGHT")).length;
+    expect(batches.length).toBe(nights + 1);
+    expect(batches[0]!.some((m) => m.t === "seed")).toBe(true);
+    // Her sonraki tx geceyi açan hamleyle başlar (seçimi kapatan son oy dahil).
+    for (const b of batches.slice(1)) expect(b.findIndex((m) => opensNight(m as { t: string }))).toBeLessThanOrEqual(1);
+    expect(batches.at(-1)!.at(-1)!.t).toBe("gameroot");
+  });
+
   test("meydan gece rol sızdırmaz; vampir takımını görür", async () => {
     const { room, d, pids } = await lobby(10);
     room.cmd(pids[0]!, { t: "cmd", c: "start" });

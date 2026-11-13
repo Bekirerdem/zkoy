@@ -9,6 +9,7 @@
 - İlk mesaj **her zaman** `hello`. `device` = cihazda kalıcı rastgele kimlik (localStorage / secure storage), ≤ 64 karakter.
 - Token yalnız WS mesajında taşınır, URL'de asla. Cihazda sakla: `{code, token}` → sayfa yenilenince `hello` ile aynı koltuğa dönülür.
 - Mesaj üst sınırı 4 KB. Hatalar `{"t":"error","e":"türkçe mesaj"}` — doğrudan ekrana basılabilir.
+- Hız sınırları: soket başına 10 saniyede 40 mesaj; oyuncu başına turda 80 hamle; IP başına dakikada 5 oda kurma, 30 katılma, 30 `watch`. Aşan istek `error` alır, bağlantı kapanmaz.
 - Katılım linki / QR: `https://zkoy.fun/j/<KOD>` (web istemcisini açar, kod ön-dolu).
 
 ## İstemci → sunucu
@@ -16,11 +17,15 @@
 | Mesaj | Ne zaman | Alanlar |
 |---|---|---|
 | `{"t":"hello","device":"…"}` | açılışta | isteğe bağlı `code` + `token` = yeniden bağlanma |
-| `{"t":"create","name":"Ali","rules":{"gozcu":null,"accusedVotes":false}}` | oda kur | ad 1-16; `rules` isteğe bağlı (`gozcu`: `null` otomatik 13+, `true`, `false`) |
-| `{"t":"join","code":"ACDE23","name":"Ayşe"}` | kodla gir | aynı cihaz aynı odaya yeniden girerse aynı koltuk |
+| `{"t":"create","name":"Ali","rules":{"gozcu":null,"accusedVotes":false},"n":"9f2c…","test":false}` | oda kur | ad 1-16; `rules` isteğe bağlı (`gozcu`: `null` otomatik 13+, `true`, `false`); `n` ve `test` aşağıda |
+| `{"t":"join","code":"ACDE23","name":"Ayşe","n":"51ab…"}` | kodla gir | aynı cihaz aynı odaya yeniden girerse aynı koltuk |
 | `{"t":"watch","code":"ACDE23"}` | perde / seyirci | yalnız `state` alır |
 | `{"t":"act","a":…}` | oyuncu hamlesi | aşağıda |
 | `{"t":"cmd","c":…}` | kurucu / Muhtar komutu | aşağıda |
+
+**`n` (kura katkısı):** cihazın her `create`/`join` için ürettiği rastgele sayı, 1-64 onaltılık karakter (`crypto.getRandomValues` ile 16 bayt önerilir). Sunucu rolleri kendi kilitli sırrı + bütün koltukların `n` değeriyle çeker; böylece dağıtımı tek başına seçemez. Göndermeyen istemci çalışmaya devam eder, yalnız kuraya katkısı olmaz.
+
+**`test`:** `true` ise masa test etiketlidir: oynanır ve mühürlenir ama `/stats` ve `/games` sayaçlarına girmez. Web istemcisinde `/?test=1` ile kurulur. Bot provaları ve denemeler için.
 
 ### Hamleler (`act`)
 
@@ -36,7 +41,7 @@
 | `done` | DAY (trial) | — | sanık "savunmam bitti" → karar oyu |
 | `verdict` | DAY (verdict) | `y` true=assın / false=asmasın | yaşayan; varsayılan kuralda sanık oy kullanmaz; sonuç kesinleşince kendiliğinden kapanır |
 | `gvote` | DAY | `x` | hayalet (ölü) kehanet: bugün kim asılacak |
-| `will` | her faz | `txt` ≤ 200 | yaşayan vasiyet |
+| `will` | oyun başladıktan sonra, END hariç | `txt` ≤ 200 karakter | yaşayan vasiyet; metin memo'ya sığmayacak kadar çok baytsa (ör. 200 emoji) "vasiyet çok uzun" hatası |
 | `heir` | DAWN / EXECUTION | `x` | ölen Muhtar halef gösterir (`me.heirRight`) |
 
 ### Komutlar (`cmd`)
@@ -51,8 +56,10 @@
 | `toVerdict` | DAY (trial) | Muhtar ya da kurucu ("oylamaya geç") |
 | `closeDay` | DAY (free) | Muhtar ya da kurucu → gece |
 | `nextRound` | EXECUTION | Muhtar ya da kurucu → gece |
+| `closeVerdict` | DAY (verdict) | Muhtar ya da kurucu, sanık hariç; karar oyu ≥ 60 sn açık kaldıysa. Verilmeyen oy "asmasın" sayılır (biri masadan kalktığında oyun kilitlenmesin) |
+| `claimHost` | her faz | kurucunun hiçbir bağlantısı ≥ 120 sn yoksa (`state.hostAway`) masadaki herhangi bir oyuncu; kuruculuğu devralır |
 
-Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir.
+Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir. Süreye bağlı düğmeler (`closeNight`, `closeVerdict`, `claimHost`) için sunucu süre dolunca kendiliğinden yeni `state` + `me` yollar; istemcinin saat tutması gerekmez.
 
 ## Sunucu → istemci
 
@@ -69,7 +76,10 @@ Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir.
 {
   "code": "ACDE23", "phase": "LOBBY|ELECTION|NIGHT|DAWN|DAY|EXECUTION|END", "round": 1,
   "rules": { "gozcu": null, "accusedVotes": false },
-  "hostPid": "p0", "muhtar": "p2", "muhtarWeight": 2, "heirPending": null,
+  "test": false,                                 // etiketli test masası
+  "seedCommit": "3a31…",                         // kura kilidi; lobiden itibaren dolu, cihazda sakla, END'de reveal.commit ile karşılaştır
+  "hostPid": "p0", "hostAway": false,            // hostAway: kurucu ≥ 120 sn bağlı değil
+  "muhtar": "p2", "muhtarWeight": 2, "heirPending": null,
   "players": [{ "id": "p0", "name": "Ali", "alive": true, "isHost": true, "isMuhtar": false, "role": null }],
   // role: yalnız ölüler ve END'de dolu
   "election": { "candidates": ["p2"], "votes": { "p0": "p2" }, "tally": { "p2": 1 } },
@@ -85,8 +95,8 @@ Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir.
   "lastVerdict": { "round": 1, "accused": "p4", "lynched": "p4", "role": "vampir", "guilty": 5, "notGuilty": 2 },
   "winner": null, "deliWon": false,
   "badges": null, "kahinScore": null,           // END'de dolu
-  "reveal": null,                                // END: { seed, salt, commit, ufvk, roomAddress }
-  "nightStartedAt": 1790000000000,
+  "reveal": null,                                // END: { seed, salt, commit, nonces, seedOk, ufvk, roomAddress }; salt = sunucunun sırrı
+  "nightStartedAt": 1790000000000, "verdictStartedAt": null,
   "announcements": [{ "at": 0, "kind": "info|dawn|verdict|end", "text": "…", "will": "…" }],
   "seals": { "chain": "zingo|mock", "txCount": 4, "memoCount": 31, "pending": 2, "recent": ["txid…"] }
 }
@@ -113,9 +123,13 @@ Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir.
 2. Kurucu `cmd start` → ELECTION: `nominate` / `mvote` → Muhtar ilan edilir → NIGHT.
 3. NIGHT: rol sahipleri `night` → otomatik DAWN (duyuru: ölen + rolü, vasiyet).
 4. DAWN: Muhtar `startDay` → DAY: `accuse` → `second` → sanık `done` (ya da Muhtar `toVerdict`) → herkes `verdict` → asılırsa EXECUTION (Muhtar `nextRound`), beraatse DAY devam; gün sonu Muhtar `closeDay`.
-5. END: `state.reveal` (kura tohumu+tuz, oda görüntüleme anahtarı) + rozetler; sunucu `gameroot` mührünü gönderir.
+5. END: `state.reveal` (kura, sır, kilit, oda görüntüleme anahtarı) + rozetler; sunucu `gameroot` mührünü gönderir.
+
+Lobide hiçbir şey mühürlenmez. Kadro (`seat` memo'ları) oyun başlarken mühürlenir; oda cüzdanı da o anda açılır. Memo biçimi ve doğrulama: [MEMOS.md](MEMOS.md).
 
 ## HTTP
 
-- `GET /stats` → `{games, finishedGames, uniqueDevices, playerSeats, sealedTx, sealedMemos, since, liveRooms, chain, opsBalanceZat, height}`
+- `GET /stats` → `{games, finishedGames, uniqueDevices, playerSeats, sealedTx, sealedMemos, activeDays, testGames, since, liveRooms, chain, opsBalanceZat, height, sealsFailing}`. Test masaları `testGames` dışında hiçbir sayıya girmez. `sealsFailing` sıfırdan büyükse bir odanın mührü zincire gidemiyor demektir.
+- `GET /games` → biten gerçek oyunların listesi: tarih, oyuncu sayısı, tur, kazanan, `gameroot`, mühür tx'leri. Oda kodu ve isim içermez.
+- `GET /g/<KOD>.json` → biten bir oyunun kaydı (oda kodunu bilen okur): oda cüzdanının memo'ları, tx'ler, kura ifşası, görüntüleme anahtarı. `bun tools/verify.ts https://zkoy.fun/g/<KOD>.json` bu kaydı kurallarla yeniden oynatıp doğrular.
 - `GET /health` → `{ok, chain}`

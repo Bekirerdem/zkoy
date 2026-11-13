@@ -12,11 +12,12 @@ In the classic Vampire Village game, one person, the narrator, knows every secre
 
 | At the table | On Zcash |
 |---|---|
-| Your role card | an encrypted memo to your own game wallet |
+| Your role card | an encrypted memo to a card wallet the server keeps for your seat |
 | Night moves, accusations, votes, last words | memos to the room wallet, sealed during play |
-| A fair shuffle | `sha256(seed \| salt)` committed before roles are dealt, opened at the end |
-| The whole game | a `gameroot` memo: one hash over every sealed move, written at the end |
+| A fair shuffle | the server commits to a secret before anyone sits down; every phone adds its own random number; the roles are drawn from both |
+| The whole game | a `gameroot` memo: one hash over every memo of the game, written at the end |
 | "Who did what?" | the room's viewing key is revealed at the end; anyone can read the full log |
+| "Was it counted honestly?" | one command replays the sealed moves through the game's rules and checks every result |
 
 Seals use zero-value shielded outputs, so a game costs only network fees: about **0.003 TAZ for an 8-player game** on testnet (measured September 2026). Players never see the words wallet, ZEC or memo; they see a seal counter and, at the end, the reveal party.
 
@@ -33,18 +34,30 @@ First-time players get five short rule cards. A narrator screen introduces each 
 
 ## Verify a game yourself
 
-At the end of every game the app reveals the shuffle seed, its salt and the room's viewing key (**Seal details**).
+At the end of every game the app reveals the server's secret, the shuffle seed and the room's viewing key (**Seal details**). With them, one command checks the whole game:
 
-- **The shuffle was fair:** `sha256("<seed>|<salt>")` must equal the commitment sealed in the `seed` memo, which was written before any role was dealt.
-- **The moves are on chain:** import the room's viewing key into any Zcash wallet that reads memos, or use `zingo-cli`, and you get every room memo: night moves, accusations, trial openings, votes, last words and phase changes.
+```bash
+bun tools/verify.ts https://zkoy.fun/g/<ROOM>.json
+```
+
+That reads the game's record from the server. To take the server out of the picture, read the same memos from chain with the room's viewing key and pipe them in:
 
 ```bash
 zingo-cli --chain testnet --server https://testnet.zec.rocks:443 \
   --data-dir <empty-dir> --viewkey "<room-viewing-key>" \
-  --birthday <a height before the game> --waitsync messages
+  --birthday <a height before the game> --waitsync messages \
+  | bun tools/verify.ts -
 ```
 
-Every move comes back as a small JSON memo (`v:3`, room code, move type, round, actor, target). Role cards are memos to each player's own game wallet, so the room key alone does not reveal them before the end. The final `gameroot` memo is a SHA-256 over the whole event log the server kept, role cards included, so the log behind the reveal party is pinned on chain.
+The verifier trusts nothing but the memos. It checks three things:
+
+1. **The draw.** `sha256(secret)` equals the commitment that was fixed when the room was created and sealed before any role was dealt, and the shuffle seed follows from that secret plus every phone's own nonce. The server could not choose the roles; neither could a player.
+2. **The play.** The sealed moves are replayed through the same rule engine the server runs. Every result on chain, from who became Muhtar and who died each night to who was hanged and who won, must be exactly what the rules produce from those moves.
+3. **The whole log.** The replay also regenerates the memos the room key cannot read (role cards, ghost spoilers, badges). The SHA-256 over all of them must equal the sealed `gameroot`, so nothing was added, dropped or reordered.
+
+The memo format is specified in [docs/MEMOS.md](docs/MEMOS.md), enough to write an independent verifier.
+
+**What this does not prove.** Phones do not sign their moves, so the chain cannot show that a sealed move is the one the player tapped. Votes are open and appear on every phone as they are cast; night moves are checked by their authors at the reveal party. The server also knows every role while the game runs, as a human narrator would. See [SECURITY.md](SECURITY.md).
 
 ## Architecture
 
@@ -56,16 +69,17 @@ Every move comes back as a small JSON memo (`v:3`, room code, move type, round, 
  │ game engine   pure state machine; every move returns the memos to seal       │
  │ room layer    phases, host and Muhtar authority, public vs private views     │
  │ SQLite        games, unique devices, event log with txids, snapshots         │
- │ seal queue    durable, batched per room, retries, survives restarts          │
+ │ seal queue    durable, one tx per round, a failing room never blocks others  │
  └──────────────────────────────────────────────────────────────────────────────┘
             │
             ▼
  zingo-cli (fork on Zakura Common crates) ──gRPC──▶ lightwalletd ──▶ Zcash testnet
 ```
 
-- **Tempo from the server, proof from the chain.** The game never waits for a block; seals catch up within a minute or two, batched into a handful of transactions per game.
+- **Tempo from the server, proof from the chain.** The game never waits for a block; seals catch up within a minute or two, one transaction per round.
 - **Nothing secret leaves the server early.** The public view never contains a living player's role or a night choice; each phone receives only its own card.
-- **Restart-safe.** Room state and the seal queue live in SQLite; a server restart resumes games where they stopped.
+- **Restart-safe.** Room state and the seal queue live in SQLite; a server restart resumes games where they stopped. The database is copied once a day to `data/backups/`.
+- **A table cannot get stuck or be flooded.** A vote someone walked away from can be closed after a minute, a table whose host dropped can be taken over, and nothing is sealed for a table that never starts. Moves are rate-limited and every memo is checked against the 512-byte limit before it is queued.
 - The zingo-cli fork and the reason for its testnet `network clearnet` patch are documented in [docs/zingo-patch.md](docs/zingo-patch.md).
 
 ## Run it locally
@@ -75,11 +89,12 @@ Requires [Bun](https://bun.sh) 1.3+.
 ```bash
 bun install
 bun run dev                         # mock chain: the full game, no Zcash needed
-bun test                            # 52 tests: engine, rules, rooms, storage, WebSocket
+bun test                            # engine, rules, rooms, storage, WebSocket, verifier
 bun tools/bots.ts <ROOM> 6          # seat six bots in a room for a solo run-through
+bun tools/verify.ts http://localhost:3131/g/<ROOM>.json   # check the finished game
 ```
 
-Open `http://localhost:3131`, create a room, add bots, start. The spectator view is `/?perde=<ROOM>`; live counters are at `/stats`.
+Open `http://localhost:3131/?test=1`, create a room, add bots, start. A table created with `?test=1` is labelled as a test: it is played and sealed like any other, but never counted. The spectator view is `/?perde=<ROOM>`; live counters are at `/stats`, finished games at `/games`.
 
 To seal on testnet, build the zingo-cli fork (see [docs/zingo-patch.md](docs/zingo-patch.md)) and run with `ZKOY_CHAIN=zingo`.
 
@@ -100,21 +115,23 @@ To seal on testnet, build the zingo-cli fork (see [docs/zingo-patch.md](docs/zin
 src/engine/    game rules as a pure state machine
 src/server/    WebSocket server, rooms, views, SQLite, seal queue, reveal story
 src/zcash/     chain service (zingo-cli and mock), faucet top-up
+src/verify/    independent verifier: replays a game from its memos
 web/           the web client
 mobile/        Flutter app (in progress)
-tools/bots.ts  rehearsal bots
+tools/         verify.ts (check a game), bots.ts (rehearsal bots), mark-test.ts
 test/          bun test suites
 ```
 
 | Document | Contents |
 |---|---|
 | [SPEC.md](SPEC.md) | Product spec and rules (Turkish) |
+| [docs/MEMOS.md](docs/MEMOS.md) | Memo format v4 and how a game is verified |
 | [docs/API.md](docs/API.md) | WebSocket contract shared by the web client and the Flutter app |
 | [docs/zingo-patch.md](docs/zingo-patch.md) | zingo-cli fork, testnet clearnet patch, Zakura Common wiring |
 
 ## Status
 
-- **Live on testnet** at [zkoy.fun](https://zkoy.fun), played at in-person events in Türkiye from September 2026. Games, unique devices and sealed moves are counted at [zkoy.fun/stats](https://zkoy.fun/stats).
+- **Live on testnet** at [zkoy.fun](https://zkoy.fun). The prototype was played at two in-person events in Türkiye in August 2026. The counters at [zkoy.fun/stats](https://zkoy.fun/stats) cover the current version only: real games, unique devices and sealed moves, with labelled test tables left out. Finished games are listed at [zkoy.fun/games](https://zkoy.fun/games) with their seal transactions.
 - **Next:** the big-screen mode (narration and the village square on a projector, phones as controllers), the Flutter app for iOS and Android, and sponsored event rooms that seal on mainnet.
 - ZKöy began at the ZcashTR 48-hour challenge during Rlay Blockchain Week in Şirince (August 2026), where it took first place. The current version is a full rewrite of that prototype.
 

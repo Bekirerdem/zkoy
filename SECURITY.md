@@ -24,4 +24,6 @@ ZKöy is a hidden-information game, so the most serious issues are the ones that
 
 - ZKöy runs on **Zcash testnet**. The server's seal wallet holds testnet coins (TAZ) only; there is no real money in play.
 - Room and player wallets are created and held by the server. The game server is trusted to deliver each player's own view; the chain makes its record tamper-evident, not secret-proof against the operator. Players never provide keys or funds.
+- The shuffle is drawn from a secret the server commits to when the room is created and a random number from every phone, so neither side can choose the roles. After the game, `tools/verify.ts` replays the sealed moves through the rules and checks every result and the final `gameroot` (see [docs/MEMOS.md](docs/MEMOS.md)).
+- Moves are not signed by the phones. The chain shows that the record was not changed after it was sealed and that every result follows from it; it does not show that a sealed move is the one the player tapped. Votes are open and visible on every phone as they are cast, and night moves are checked by their authors at the reveal party.
 - Tokens are sent over the WebSocket handshake, never in URLs, and are stored only as hashes.

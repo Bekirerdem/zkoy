@@ -3,9 +3,10 @@
 // açılır; gözcü sonucu yalnız gözcüye; hayalet kehanetleri gizli.
 
 import { supportWeight, trialNeed, weightOf } from "../engine/engine";
+import { commitOf, seedFrom } from "../engine/fair";
 import { Role } from "../engine/types";
 import { CmdKind } from "./protocol";
-import { NIGHT_FORCE_MS, Room, sha256Hex } from "./room";
+import { NIGHT_FORCE_MS, Room, VERDICT_FORCE_MS } from "./room";
 import { SealQueue } from "./seal-queue";
 
 export interface PublicPlayer {
@@ -29,7 +30,13 @@ export function publicView(room: Room, seals: SealQueue, chain: string) {
     phase: s.phase,
     round: s.round,
     rules: s.rules,
+    /** Etiketli test masası: oynanır ve mühürlenir ama hiçbir sayaca girmez. */
+    test: room.test,
+    /** Kuranın kilidi: oda kurulurken sabitlenir, lobiden itibaren görünür. */
+    seedCommit: s.seedCommit,
     hostPid: room.hostPid,
+    /** Kurucunun bağlantısı uzun süredir yok: masadaki biri devralabilir. */
+    hostAway: room.hostAway(),
     muhtar: s.muhtar,
     muhtarWeight: s.muhtarWeight,
     heirPending: s.heirPending,
@@ -66,16 +73,24 @@ export function publicView(room: Room, seals: SealQueue, chain: string) {
     reveal: end
       ? {
           seed: s.seed,
+          // `salt` = sunucunun sırrı (alan adı v3 istemcileri için korunuyor).
           salt: s.seedSalt,
           commit: s.seedCommit,
-          // Kura doğrulaması: sha256(seed|salt) oyun başında mühürlenen taahhüde eşit mi.
-          seedOk: s.seed !== null && !!s.seedSalt && sha256Hex(`${s.seed}|${s.seedSalt}`) === s.seedCommit,
+          nonces: s.players.map((p) => p.nonce ?? ""),
+          // Kura doğrulaması: sha256(sır) lobide verilen kilide, sır + oyuncu
+          // katkılarından türeyen sayı da dağıtımda kullanılan kuraya eşit mi.
+          seedOk:
+            s.seed !== null &&
+            !!s.seedSalt &&
+            commitOf(s.seedSalt) === s.seedCommit &&
+            seedFrom(s.seedSalt, s.players.map((p) => p.nonce ?? "")) === s.seed,
           ufvk: room.ufvk,
           roomAddress: room.address,
         }
       : null,
     story: end ? room.story() : null,
     nightStartedAt: room.nightStartedAt,
+    verdictStartedAt: room.verdictStartedAt,
     announcements: room.announcements.slice(-12),
     seals: {
       chain,
@@ -163,12 +178,20 @@ function allowed(room: Room, pid: string): Can[] {
         (s.rules.accusedVotes || trial?.accused !== pid)
       )
         can.push("verdict");
+      if (
+        s.day.stage === "verdict" &&
+        leader &&
+        trial?.accused !== pid &&
+        Date.now() - (room.verdictStartedAt ?? 0) >= VERDICT_FORCE_MS
+      )
+        can.push("closeVerdict");
       break;
     case "EXECUTION":
       if (leader) can.push("nextRound");
       break;
   }
   if (s.heirPending === pid && (s.phase === "DAWN" || s.phase === "EXECUTION")) can.push("heir");
-  if (me.alive && s.phase !== "END") can.push("will");
+  if (me.alive && s.phase !== "END" && s.phase !== "LOBBY") can.push("will");
+  if (!host && room.hostAway()) can.push("claimHost");
   return can;
 }

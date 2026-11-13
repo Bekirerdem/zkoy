@@ -73,7 +73,7 @@ describe("Room", () => {
     expect(st.uniqueDevices).toBe(8);
     const memos = d.zcash.sent.flatMap((b) => b.events.map((e) => e.memo));
     expect(memos.some((m) => m.t === "gameroot")).toBe(true);
-    expect(memos.every((m) => m.v === 3)).toBe(true);
+    expect(memos.every((m) => m.v === 4)).toBe(true);
     const pub = publicView(room, d.seals, "mock");
     expect(pub.reveal?.salt).toBeTruthy();
     expect(pub.seals.pending).toBe(0);

@@ -42,7 +42,9 @@ describe("ifşa partisi", () => {
     room.cmd(pids[0]!, { t: "cmd", c: "startDay" });
     const others = s.players.filter((p) => p.alive && p.id !== vamp).map((p) => p.id);
     room.act(others[0]!, { t: "act", a: "accuse", x: vamp });
-    room.act(others[1]!, { t: "act", a: "second", x: vamp });
+    // Eşik 3: Muhtar destekçilerin arasında değilse iki destek yetmez (p0 vampir
+    // çıktığında test düşüyordu). Dava açılana kadar destek topla.
+    for (const id of others.slice(1)) if (s.day.stage === "free") room.act(id, { t: "act", a: "second", x: vamp });
     room.act(vamp, { t: "act", a: "done" });
     for (const id of others) if (s.day.stage === "verdict") room.act(id, { t: "act", a: "verdict", y: true });
     expect(s.phase).toBe("END");

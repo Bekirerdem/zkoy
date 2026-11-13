@@ -14,9 +14,14 @@ import {
   RoomState,
   Winner,
 } from "./types";
+import { byteLength } from "./fair";
 
 export const MIN_PLAYERS = 7;
 export const MAX_PLAYERS = 15;
+/** A name is repeated in several memos; 16 characters of any script fit in this. */
+export const MAX_NAME_BYTES = 48;
+/** JSON-encoded size of a will, so the whole memo stays under Zcash's 512 bytes. */
+export const MAX_WILL_BYTES = 420;
 
 /** SPEC v3 §2.1 varsayılanları: gözcü 13+ oyuncuda, sanık oy kullanmaz. */
 export const DEFAULT_RULES: RoomRules = { gozcu: null, accusedVotes: false, trialSupport: null };
@@ -57,9 +62,22 @@ function alivePlayers(state: RoomState): Player[] {
   return state.players.filter((p) => p.alive);
 }
 
-/** SPEC v3 §9.3: every memo carries v:3 and the room code. */
+/** Every memo carries the format version and the room code (v4: docs/MEMOS.md). */
+export const MEMO_VERSION = 4;
 function memo(state: RoomState, body: Record<string, unknown>): Record<string, unknown> {
-  return { v: 3, g: state.code, ...body };
+  return { v: MEMO_VERSION, g: state.code, ...body };
+}
+
+/**
+ * The host or the Muhtar closed a step that was waiting on someone (election,
+ * night, verdict). Sealed so that a replay knows why the step ended early.
+ */
+export function forceMemo(
+  state: RoomState,
+  what: "election" | "night" | "verdict",
+  by: string,
+): MemoEvent {
+  return { to: "room", memo: memo(state, { t: "force", r: state.round, what, by }) };
 }
 
 function freshDay(): DayState {
@@ -97,13 +115,18 @@ export function createRoom(code: string, rules: Partial<RoomRules> = {}): RoomSt
   };
 }
 
-export function join(state: RoomState, id: string, name: string): MemoEvent[] {
+/**
+ * Takes a seat. Nothing is sealed in the lobby: a table that never starts
+ * costs no transaction, and the final roster is sealed as `seat` memos at start.
+ */
+export function join(state: RoomState, id: string, name: string, nonce = ""): MemoEvent[] {
   requirePhase(state, "LOBBY");
   if (state.players.length >= MAX_PLAYERS) throw new EngineError("oda dolu");
+  if (byteLength(name) > MAX_NAME_BYTES) throw new EngineError("ad çok uzun");
   if (state.players.some((p) => p.name === name))
     throw new EngineError("bu isim alınmış");
-  state.players.push({ id, name, role: null, alive: true, will: null, diedInRound: null });
-  return [{ to: "room", memo: memo(state, { t: "join", p: id, name }) }];
+  state.players.push({ id, name, role: null, alive: true, will: null, diedInRound: null, nonce });
+  return [];
 }
 
 /** SPEC §1 composition table: vampir 1 (7-9), 2 (10-12), 3 (13-15); deli from 8. */
@@ -155,9 +178,16 @@ export function start(
     const j = Math.floor(rng() * (i + 1));
     [roles[i], roles[j]] = [roles[j]!, roles[i]!];
   }
-  const events: MemoEvent[] = [
-    { to: "room", memo: memo(state, { t: "seed", c: seedCommit }) },
-  ];
+  // The roster first (who sat where, with which nonce), then the commitment and
+  // the rules: a verifier needs nothing else to deal the same roles again.
+  const events: MemoEvent[] = state.players.map((p) => ({
+    to: "room" as const,
+    memo: memo(state, { t: "seat", p: p.id, name: p.name, n: p.nonce }),
+  }));
+  events.push({
+    to: "room",
+    memo: memo(state, { t: "seed", c: seedCommit, k: state.players.length, rules: state.rules }),
+  });
   state.players.forEach((p, i) => {
     p.role = roles[i]!;
     events.push({ to: { player: p.id }, memo: memo(state, { t: "role", role: p.role }) });
@@ -176,9 +206,10 @@ export function nominate(state: RoomState, playerId: string): MemoEvent[] {
   requirePhase(state, "ELECTION");
   const p = player(state, playerId);
   if (!p.alive) throw new EngineError("ölüler aday olamaz");
-  if (!state.election.candidates.includes(playerId))
-    state.election.candidates.push(playerId);
-  return []; // adaylık off-chain
+  if (state.election.candidates.includes(playerId)) return [];
+  state.election.candidates.push(playerId);
+  // Sealed: with no votes cast the draw is among the candidates, so a replay needs them.
+  return [{ to: "room", memo: memo(state, { t: "nom", p: playerId }) }];
 }
 
 export function electionVote(
@@ -309,8 +340,9 @@ function kill(state: RoomState, id: string): MemoEvent[] {
     state.muhtar = null;
     state.heirPending = id;
   }
+  // Keyed by seat id: fifteen long names would not fit in one memo.
   const roles: Record<string, Role> = {};
-  for (const q of state.players) roles[q.name] = q.role!;
+  for (const q of state.players) roles[q.id] = q.role!;
   return [{ to: { player: id }, memo: memo(state, { t: "spoiler", roles }) }];
 }
 
@@ -619,9 +651,13 @@ export function nextRound(state: RoomState, by = "auto"): MemoEvent[] {
 /* ── VASİYET ── */
 
 export function setWill(state: RoomState, playerId: string, txt: string): MemoEvent[] {
+  if (state.phase === "LOBBY" || state.phase === "END")
+    throw new EngineError("vasiyet oyun sırasında yazılır");
   const p = player(state, playerId);
   if (!p.alive) throw new EngineError("ölüler vasiyet güncelleyemez");
   if (txt.length > 200) throw new EngineError("vasiyet en çok 200 karakter");
+  if (byteLength(JSON.stringify(txt)) > MAX_WILL_BYTES)
+    throw new EngineError("vasiyet çok uzun, biraz kısalt");
   p.will = txt;
   return [{ to: "room", memo: memo(state, { t: "will", p: playerId, txt }) }];
 }

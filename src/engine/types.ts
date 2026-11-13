@@ -25,6 +25,8 @@ export interface Player {
   will: string | null;
   /** Round the player died in, null while alive. */
   diedInRound: number | null;
+  /** The phone's own randomness for the shuffle (hex, may be empty). */
+  nonce: string;
 }
 
 export interface NightActions {
@@ -114,7 +116,11 @@ export interface RoomState {
   phase: Phase;
   round: number;
   players: Player[];
-  /** Kanıtlı kura: seed + commitment sealed at start, salt injected by server, revealed at END. */
+  /**
+   * Kanıtlı kura (v4): `seedCommit` = sha256(server secret), fixed when the room
+   * is created. `seed` is derived at start from the secret and every seat's
+   * nonce. `seedSalt` holds the secret from start on; it is revealed at END.
+   */
   seed: number | null;
   seedCommit: string | null;
   seedSalt: string | null;

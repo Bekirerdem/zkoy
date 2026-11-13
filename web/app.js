@@ -74,6 +74,33 @@ const PHASE = { LOBBY: "Oda", ELECTION: "Seçim", NIGHT: "Gece", DAWN: "Şafak",
 const params = new URLSearchParams(location.search);
 const pathCode = (location.pathname.match(/^\/j\/([A-Za-z0-9]{4,8})/) || [])[1];
 const watchCode = params.get("perde");
+/** `/?test=1` ile kurulan masa test etiketlidir: oynanır, mühürlenir, sayaçlara girmez. */
+const testMode = params.get("test") === "1";
+
+/**
+ * Kuraya bu telefonun katkısı: sunucu rolleri kendi sırrı + bütün telefonların
+ * bu sayılarıyla çeker, yani dağıtımı tek başına seçemez.
+ */
+function nonce() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  return [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Lobide görülen kura kilidi telefonda saklanır; oyun sonunda açılanla karşılaştırılır. */
+const commitKey = (code) => `zkoy.kilit.${code}`;
+
+/** Oyun sürerken ekran kararmasın: gece telefon masada durur, sabahı ekran haber verir. */
+let wakeLock = null;
+async function keepAwake() {
+  if (!("wakeLock" in navigator) || wakeLock || document.visibilityState !== "visible") return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => (wakeLock = null));
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (session && s && s.phase !== "END") keepAwake();
+});
 let session = store.get("zkoy.session"); // {code, token}
 let s = null; // meydan
 let m = null; // bana özel
@@ -143,6 +170,10 @@ function connect() {
       s = f.s;
       if (prevPhase === "LOBBY" && s.phase === "ELECTION") cardOpen = true;
       if (prevPhase !== s.phase && navigator.vibrate) navigator.vibrate(60);
+      if (s.phase === "LOBBY" && s.seedCommit && !store.get(commitKey(s.code))) store.set(commitKey(s.code), s.seedCommit);
+      if (s.phase === "END") {
+        if (wakeLock) wakeLock.release().catch(() => {});
+      } else if (!watchCode) keepAwake();
     } else if (f.t === "me") {
       m = f.m;
     } else if (f.t === "error") {
@@ -185,6 +216,11 @@ function render() {
   // (her bot/oyuncu hamlesi) kartı yeniden döndürmesin.
   if (key === lastKey) view.el.classList.add("still");
   lastKey = key;
+  // Kurucu koptuysa masa sahipsiz kalmasın: her ekranın başında devralma çağrısı.
+  if (!watchCode && session && s && m && m.can.includes("claimHost") && rulesStep === null)
+    view.el.prepend(h("div", { class: "callout" },
+      h("span", { style: "flex-grow:1" }, h("small", {}, "KURUCU KOPTU"), `${nameOf(s.hostPid)} bir süredir bağlı değil.`),
+      h("button", { onclick: () => cmd("claimHost") }, "Masayı devral")));
   document.body.className = view.theme;
   // Sayfanın en dış zemini ve tarayıcı çubuğu da temayla döner (iOS esnemesinde beyaz görünmesin).
   const ground = view.theme.includes("day") ? "#FAF7EF" : "#11101B";
@@ -245,7 +281,7 @@ function viewEbe(e) {
           h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, `${s.muhtar ? `MUHTAR: ${nameOf(s.muhtar).toLocaleUpperCase("tr")} · ` : ""}${s.round}. GECE`),
           h("h1", { class: "ebe-title big" }, "Gece çöküyor."),
           h("p", { style: "max-width:300px;font-size:18px" }, "Herkes gözlerini kapatsın. Rolü olan telefonuna baksın, kimse konuşmasın."),
-          h("p", { class: "muted", style: "max-width:290px" }, actor ? "Senin bu gece bir hamlen var. Sessizce yap, sonra telefonu masaya bırak." : "Sabah olunca telefonun titrer. O zamana kadar masaya bırak.")),
+          h("p", { class: "muted", style: "max-width:290px" }, actor ? "Senin bu gece bir hamlen var. Sessizce yap, sonra telefonu masaya bırak." : "Sabah olunca ekranın aydınlanır. O zamana kadar masaya bırak.")),
         h("button", { class: actor ? "btn" : "ghost", onclick: done }, actor ? "Hamleme geç" : "Gözlerim kapalı")),
     };
   }
@@ -323,7 +359,7 @@ function viewSetup() {
   const create = () => {
     const name = (draft.name || "").trim();
     if (!name) { setup = false; render(); return toast("Önce adını yaz."); }
-    send({ t: "create", name, rules: setupRules });
+    send({ t: "create", name, rules: setupRules, n: nonce(), test: testMode });
   };
   return {
     theme: "night",
@@ -378,7 +414,7 @@ function viewEntry() {
       return toast("Oda kodunu yaz.");
     }
     store.set("zkoy.name", name);
-    send({ t: "join", code, name });
+    send({ t: "join", code, name, n: nonce() });
   };
   const joining = !!draft.code;
   return {
@@ -442,7 +478,8 @@ function viewLobby() {
           chip("vampir", `${c.vampir} vampir`), chip("doktor", "1 doktor"),
           c.gozcu ? chip("gozcu", "1 gözcü") : chip("off", "gözcü yok"),
           c.deli ? chip("deli", "1 deli") : null,
-          chip("koylu", `${c.koylu} köylü`)),
+          chip("koylu", `${c.koylu} köylü`),
+          s.test ? chip("off", "test masası · sayaçlara girmez") : null),
         h("span", { class: "muted", style: "font-size:13px" }, `Masa büyüdükçe dağılım kendiliğinden değişir. Sanık kendi davasında ${s.rules.accusedVotes ? "oy kullanır" : "oy kullanmaz"}.`)),
       h("div", { class: "bar" }, h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:26px" }, "Masa"), h("span", { class: "mono muted" }, `${n} / 15 · en az 7`)),
       h("div", { class: "seats" }, s.players.map((p) =>
@@ -549,14 +586,21 @@ function viewNight() {
   };
 }
 
+/** Vasiyet kutusu açık mı: ekran her yayında baştan çizilir, kutu yazarken kapanmasın. */
+let willOpen = false;
+
 function willBox() {
   const save = () => {
     const txt = document.getElementById("will").value.trim();
-    if (txt) act("will", { txt });
-    toast("Vasiyetin mühürlendi.");
+    if (!txt) return toast("Önce vasiyetini yaz.");
+    if (!ws || ws.readyState !== 1) return toast("Bağlantı yok, yeniden bağlanıyor…");
+    act("will", { txt });
+    willOpen = false;
+    toast("Vasiyetin kaydedildi; turla birlikte mühürlenir.");
+    render();
   };
   if (draft.will === null) draft.will = m.will || "";
-  return h("details", {},
+  return h("details", { open: willOpen, ontoggle: (e) => (willOpen = e.target.open) },
     h("summary", { class: "muted", style: "cursor:pointer;min-height:44px;display:flex;align-items:center" }, m.will ? "Vasiyetin yazılı · düzenle" : "Vasiyet bırak (ölünce okunur)"),
     h("div", { class: "stack", style: "margin-top:8px" },
       h("label", { class: "sr", for: "will" }, "Vasiyet"),
@@ -672,7 +716,12 @@ function viewTrial() {
         const v = t.verdicts[p.id];
         const mark = v === undefined ? " …" : v ? (w[p.id] > 1 ? " ✓✓" : " ✓") : " ✗";
         return h("span", { class: `chip${v === true ? " y" : v === false ? " n" : ""}` }, p.name + mark);
-      })));
+      })),
+      // Biri oy vermeden masadan kalktıysa oyun burada kalmasın (bir dakika sonra açılır).
+      m.can.includes("closeVerdict") && h("div", { class: "stack", style: "gap:6px" },
+        h("button", { class: "ghost", onclick: () => cmd("closeVerdict") }, "Oylamayı kapat"),
+        h("span", { class: "muted", style: "font-size:13px" },
+          `Oy vermeyen: ${voters.filter((p) => t.verdicts[p.id] === undefined).map((p) => p.name).join(", ")}. Verilmeyen oy “asmasın” sayılır.`)));
   }
   return {
     theme: "day",
@@ -761,20 +810,26 @@ function storyBlock() {
 
 function viewIfsa() {
   const pending = s.seals.pending;
+  // Sunucunun "uydu" demesi yetmez: açılan kilit, bu telefonun lobide gördüğü kilit olmalı.
+  const seen = store.get(commitKey(s.code));
+  const lockOk = !!(s.reveal && s.reveal.seedOk) && (!seen || seen === s.reveal.commit);
   const sealBox = h("div", { class: "stack", style: "gap:12px" },
-    h("div", { class: `okbox${s.reveal && s.reveal.seedOk ? "" : " warn"}` },
-      h("b", {}, s.reveal && s.reveal.seedOk ? "✓ Kura dürüst çekildi" : "Kura doğrulanamadı"),
-      h("span", {}, "Roller dağıtılmadan önce kuranın kilidi zincire yazıldı. Oyun bitince açıldı ve kilide uydu: kimse rolleri sonradan değiştirmedi.")),
+    h("div", { class: `okbox${lockOk ? "" : " warn"}` },
+      h("b", {}, lockOk ? "✓ Kura dürüst çekildi" : "Kura doğrulanamadı"),
+      h("span", {}, lockOk
+        ? "Kuranın kilidi oda kurulurken belirlendi ve lobide bu telefona geldi. Roller, o kilitli sır ile her telefonun kendi kattığı sayıdan çekildi: dağıtımı kimse tek başına seçemezdi. Oyun bitince sır açıldı ve kilide uydu."
+        : "Oyun sonunda açılan sır, lobide gösterilen kilide uymuyor. Bu oyunun kurası doğrulanamadı.")),
     h("div", { class: "will" },
       h("b", {}, `${s.seals.memoCount} hamle · ${s.seals.txCount} mühür paketi`),
       h("span", { class: "muted", style: "font-size:15px" }, pending ? `${pending} hamle daha zincire gidiyor; birkaç dakika içinde oturur.` : "Her gece hamlesi, her oy ve vasiyet Zcash ağına gizli notlar olarak yazıldı. Oyunun özet mührü hepsini tek parmak iziyle bağlar.")),
     h("details", { class: "tech" },
       h("summary", {}, "Teknik ayrıntı"),
       h("div", { class: "mono" },
-        h("p", { class: "muted", style: "font-family:var(--b-font)" }, "Kendin doğrula: sha256(\"kura|tuz\") kilide eşit olmalı. Görüntüleme anahtarıyla odanın bütün hamleleri herhangi bir Zcash cüzdanında okunur."),
+        h("p", { class: "muted", style: "font-family:var(--b-font)" }, "Kendin doğrula: sha256(sır) kilide eşit olmalı; kura, sır ile oyuncuların kattığı sayılardan türer. Görüntüleme anahtarıyla odanın bütün hamleleri herhangi bir Zcash cüzdanında okunur. Oyunun tamamını kurallarla yeniden oynatıp sınayan komut ve bu oyunun kaydı:"),
+        h("p", {}, `bun tools/verify.ts ${location.origin}/g/${s.code}.json`),
         s.reveal && [
           ["kura", String(s.reveal.seed)],
-          ["tuz", String(s.reveal.salt)],
+          ["sır", String(s.reveal.salt)],
           ["kilit", String(s.reveal.commit)],
           ["görüntüleme anahtarı", String(s.reveal.ufvk)],
         ].map(([k, v]) => h("div", { class: "kvcopy" },

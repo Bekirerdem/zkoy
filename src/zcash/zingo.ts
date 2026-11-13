@@ -85,6 +85,19 @@ export function extractLastJson(out: string): unknown {
   return best;
 }
 
+/**
+ * The quicksend argument travels inside single quotes on zingo-cli's command
+ * line, so it must not contain one. An apostrophe in a name or a will is
+ * written as its JSON escape ('): the wallet's JSON parser turns it back,
+ * and the memo on chain is byte for byte the memo that was hashed into the
+ * gameroot. (It used to be deleted, which changed the sealed text.)
+ */
+export function quicksendArg(
+  receivers: Array<{ address: string; amount: number; memo: string }>,
+): string {
+  return JSON.stringify(receivers).replaceAll("'", "\\u0027");
+}
+
 // NOT (17 Ağu): zingo süreçlerinin önceliği, istek yolunu asan per-spawn
 // PowerShell yerine sunucudan bağımsız bir gözcü döngüyle düşürülür
 // (bkz. docs/archive/DEMO-v1.md — "öncelik gözcüsü"). ZK proving aksi halde tüm
@@ -169,7 +182,11 @@ async function runOnlineSession(
     await Promise.all([outPump, errPump]);
     const exit = await p.exited;
     clearTimeout(killer);
-    if (exit !== 0 || /Error:/.test(errBuf))
+    // A txid on stdout means the transaction was built and handed to the
+    // network. An unrelated "Error:" line in the info log (sync noise) must not
+    // void it: the queue would send the same memos a second time.
+    const sent = /"txids"\s*:\s*\[\s*"[0-9a-f]{64}"/.test(outBuf);
+    if (exit !== 0 || (/Error:/.test(errBuf) && !sent))
       throw new Error(
         `zingo session failed:\n--- stderr ---\n${errBuf.slice(-1200)}\n--- stdout ---\n${outBuf.slice(-800)}`,
       );
@@ -281,8 +298,7 @@ export class ZingoService implements ZcashService {
         memo: JSON.stringify(e.memo),
       });
     }
-    const arg = JSON.stringify(receivers).replaceAll("'", "");
-    const out = await runOnlineSession(OPS_DIR, [`quicksend '${arg}'`]);
+    const out = await runOnlineSession(OPS_DIR, [`quicksend '${quicksendArg(receivers)}'`]);
     const json = extractLastJson(out) as { txids?: string[] } | undefined;
     const txid = json?.txids?.[0];
     if (!txid) throw new Error(`quicksend returned no txid: ${out.slice(-1500)}`);

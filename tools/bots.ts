@@ -4,6 +4,8 @@
 // Varsayılan insan temposu (hamle 4-10 sn, gündüz ilk 30 sn suçlama yok, bot
 // Muhtar faz geçirmeden 20 sn bekler); --hizli otomatik provalar içindir.
 
+export {}; // modül kapsamı: buradaki adlar (URL gibi) global tiplerle çakışmasın
+
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const FAST = process.argv.includes("--hizli");
 const [code, countArg, urlArg] = args;
@@ -16,6 +18,8 @@ const URL = urlArg ?? "ws://localhost:3131/ws";
 const NAMES = ["Hasan", "Fadime", "Rıza", "Nuriye", "Cemal", "Şükran", "Kâzım", "Hatice", "Veli", "Zehra", "Osman", "Emine", "Temel"];
 const DAY_QUIET_MS = FAST ? 0 : 30_000;
 const LEADER_WAIT_MS = FAST ? 0 : 20_000;
+/** Bot Muhtar, dava açılmayan günü bu kadar sonra kapatır (prova kilitlenmesin). */
+const DAY_CLOSE_MS = FAST ? 15_000 : 120_000;
 
 const pick = <T,>(xs: T[]): T | undefined => xs[Math.floor(Math.random() * xs.length)];
 const later = (fn: () => void) =>
@@ -83,6 +87,9 @@ function bot(i: number) {
       if (can.includes("startDay")) return act({ t: "cmd", c: "startDay" });
       if (can.includes("nextRound")) return act({ t: "cmd", c: "nextRound" });
       if (can.includes("toVerdict")) return act({ t: "cmd", c: "toVerdict" });
+      // Oy vermeyen biri varsa oylamayı kapatır; dava çıkmayan günü geceye bağlar.
+      if (can.includes("closeVerdict")) return act({ t: "cmd", c: "closeVerdict" });
+      if (can.includes("closeDay") && inPhase >= DAY_CLOSE_MS) return act({ t: "cmd", c: "closeDay" });
     }
   }
 

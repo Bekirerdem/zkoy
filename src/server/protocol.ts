@@ -25,21 +25,32 @@ export type CmdKind =
   | "toVerdict"
   | "closeDay"
   | "nextRound"
-  | "kick";
+  | "kick"
+  | "closeVerdict"
+  | "claimHost";
 
 export type ActMsg = { t: "act"; a: ActKind; x?: string; y?: boolean; txt?: string };
 export type CmdMsg = { t: "cmd"; c: CmdKind; x?: string };
 
 export type ClientMsg =
   | { t: "hello"; device: string; code?: string; token?: string }
-  | { t: "create"; name: string; rules?: Partial<RoomRules> }
-  | { t: "join"; code: string; name: string }
+  | { t: "create"; name: string; rules?: Partial<RoomRules>; n: string; test: boolean }
+  | { t: "join"; code: string; name: string; n: string }
   | { t: "watch"; code: string }
   | ActMsg
   | CmdMsg;
 
 const ACTS: ActKind[] = ["nominate", "mvote", "night", "accuse", "second", "done", "verdict", "gvote", "will", "heir"];
-const CMDS: CmdKind[] = ["start", "closeElection", "closeNight", "startDay", "toVerdict", "closeDay", "nextRound", "kick"];
+const CMDS: CmdKind[] = [
+  "start", "closeElection", "closeNight", "startDay", "toVerdict", "closeDay", "nextRound", "kick",
+  "closeVerdict", "claimHost",
+];
+
+/**
+ * The phone's share of the shuffle randomness: up to 64 hex characters. An
+ * older client sends none; anything else is ignored rather than refused.
+ */
+const nonce = (v: unknown): string => (typeof v === "string" && /^[0-9a-f]{1,64}$/.test(v) ? v : "");
 
 export class ProtocolError extends Error {}
 
@@ -68,12 +79,12 @@ export function parseClientMsg(raw: string): ClientMsg {
       const rules: Partial<RoomRules> = {};
       if (r.gozcu === true || r.gozcu === false || r.gozcu === null) rules.gozcu = r.gozcu;
       if (r.accusedVotes === true || r.accusedVotes === false) rules.accusedVotes = r.accusedVotes;
-      return { t: "create", name: m.name.trim(), rules };
+      return { t: "create", name: m.name.trim(), rules, n: nonce(m.n), test: m.test === true };
     }
     case "join":
       if (!str(m.code, 8)) throw new ProtocolError("oda kodu eksik");
       if (!str(m.name, 16)) throw new ProtocolError("ad 1-16 karakter olmalı");
-      return { t: "join", code: m.code.toUpperCase(), name: m.name.trim() };
+      return { t: "join", code: m.code.toUpperCase(), name: m.name.trim(), n: nonce(m.n) };
     case "watch":
       if (!str(m.code, 8)) throw new ProtocolError("oda kodu eksik");
       return { t: "watch", code: m.code.toUpperCase() };

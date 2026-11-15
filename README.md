@@ -127,7 +127,7 @@ src/server/    WebSocket server, rooms, views, SQLite, seal queue, reveal story
 src/zcash/     chain service (zingo-cli and mock), faucet top-up
 src/verify/    independent verifier: replays a game from its memos
 web/           the web client
-mobile/        Flutter app (in progress)
+mobile/        Flutter client of the August prototype (paused: the web version comes first)
 tools/         verify.ts (check a game), bots.ts (rehearsal bots), mark-test.ts
 test/          bun test suites
 ```
@@ -136,14 +136,14 @@ test/          bun test suites
 |---|---|
 | [SPEC.md](SPEC.md) | Product spec and rules (Turkish) |
 | [docs/MEMOS.md](docs/MEMOS.md) | Memo format v4 and how a game is verified |
-| [docs/API.md](docs/API.md) | WebSocket contract shared by the web client and the Flutter app |
+| [docs/API.md](docs/API.md) | WebSocket contract for the web client and any other client |
 | [docs/zingo-patch.md](docs/zingo-patch.md) | zingo-cli fork, testnet clearnet patch, Zakura Common wiring |
 
 ## Status
 
 - **Live on testnet** at [zkoy.fun](https://zkoy.fun). The counters at [zkoy.fun/stats](https://zkoy.fun/stats) cover this rewrite only, and finished games are listed at [zkoy.fun/games](https://zkoy.fun/games) with their seal transactions. So far they hold one game, a bot rehearsal from October 2026; tables opened with `?test=1` are labelled and left out.
-- **Next:** the big-screen mode (narration and the village square on a projector, phones as controllers), the Flutter app for iOS and Android, and sponsored event rooms that seal on mainnet.
-- ZKöy began at the ZcashTR 48-hour challenge during Rlay Blockchain Week in Şirince (August 2026), where it took first place. The current version is a full rewrite of that prototype.
+- ZKöy began at the ZcashTR 48-hour challenge during Rlay Blockchain Week in Şirince (August 2026), where it took first place. The prototype was played there on the final day and later at two community events in Bursa; those games ran before this server and are not in its counters. The current version is a full rewrite of that prototype.
+- **Next:** an English interface, a solo demo you can play against bots, and the big-screen mode (narration and the village square on a projector, phones as controllers). The web version comes first; phone apps follow once it is played regularly.
 
 ## License and security
 
@@ -152,7 +152,7 @@ MIT, see [LICENSE](LICENSE). Found a way to peek at hidden information or act fo
 ## Team
 
 - **Bekir Erdem**: server, Zcash integration, game engine, web client
-- **Selinay Tiftikçi**: Flutter app, game screens
+- **Selinay Tiftikçi**: Flutter prototype, game screens
 
 ---
 

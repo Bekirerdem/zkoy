@@ -77,7 +77,7 @@ export async function claimFauzec(address: string): Promise<unknown> {
   return out;
 }
 
-interface FaucetSource {
+export interface FaucetSource {
   name: string;
   claim: (address: string) => Promise<unknown>;
 }
@@ -87,11 +87,12 @@ const SOURCES: FaucetSource[] = [
   { name: "jinolabs", claim },
 ];
 
-type FaucetState = Record<string, { at: number; out?: unknown; error?: string }>;
+/** `bal`: ops balance (zat) the server saw when that claim was accepted. */
+type FaucetState = Record<string, { at: number; out?: unknown; error?: string; bal?: number }>;
 
-function readState(): FaucetState {
+function readState(file: string): FaucetState {
   try {
-    const raw = JSON.parse(readFileSync(STATE_FILE, "utf8"));
+    const raw = JSON.parse(readFileSync(file, "utf8"));
     // Eski biçim: tek kaynak {at, out} → jinolabs.
     return typeof raw?.at === "number" ? { jinolabs: raw } : raw;
   } catch {
@@ -99,41 +100,70 @@ function readState(): FaucetState {
   }
 }
 
-function writeState(state: FaucetState) {
-  if (!existsSync(dirname(STATE_FILE))) mkdirSync(dirname(STATE_FILE), { recursive: true });
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+function writeState(file: string, state: FaucetState) {
+  if (!existsSync(dirname(file))) mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(state, null, 2));
 }
 
+export interface FaucetOptions {
+  reserveZat: number;
+  /** A failed claim is retried after this long. */
+  everyMs: number;
+  sources: FaucetSource[];
+  stateFile: string;
+  now: () => number;
+}
+
+const FAUCET_DEFAULTS: FaucetOptions = {
+  reserveZat: Number(process.env.ZKOY_FAUCET_RESERVE_ZAT ?? 200_000_000),
+  everyMs: 3_600_000,
+  sources: SOURCES,
+  stateFile: STATE_FILE,
+  now: Date.now,
+};
+
 /**
- * Saatlik kontrol: bakiye yedek eşiğinin altındaysa her musluktan kendi 24
- * saatlik hakkı dolduğunda talep eder. Eşik (varsayılan 2 TAZ ≈ 650 oyun)
+ * Tek kontrol: bakiye yedek eşiğinin altındaysa her musluktan kendi 24
+ * saatlik hakkı dolduğunda talep eder. Eşik (varsayılan 2 TAZ ≈ 350 oyun)
  * aşılınca durur; musluk ortak kaynak, ihtiyaçtan fazlası biriktirilmez.
- * Başarısız talep de zamanlanır (bir saat sonra yeniden denenir).
+ *
+ * Bakiye çevrimdışı okunur: ops cüzdanı yalnız bir mühür gönderirken
+ * senkronlanır. Kabul edilmiş son talepten beri bakiye hiç değişmediyse cüzdan
+ * o talebin gelip gelmediğini henüz görmemiştir; yeniden istemek musluğu boşa
+ * boşaltır. (Eki-Kas 2026: oyun olmayınca bakiye 2,29 TAZ'da dondu, döngü 35
+ * gün her gün istedi, kasa 29,89 TAZ'a çıktı.) İlk mühür gönderimi bakiyeyi
+ * tazeler; talepler gelmediyse döngü o zaman yeniden ister.
  */
+export async function faucetTick(zcash: ZcashService, opsAddress: string, opts: Partial<FaucetOptions> = {}): Promise<void> {
+  const o = { ...FAUCET_DEFAULTS, ...opts };
+  const bal = await zcash.balance().catch(() => null);
+  if (bal === null || bal >= o.reserveZat) return;
+  const state = readState(o.stateFile);
+  if (Object.values(state).some((s) => !s.error && s.bal === bal)) return;
+  for (const src of o.sources) {
+    const last = state[src.name];
+    const now = o.now();
+    if (last && !last.error && now - last.at < DAY_MS) continue;
+    if (last?.error && now - last.at < o.everyMs) continue;
+    try {
+      const out = await src.claim(opsAddress);
+      state[src.name] = { at: now, out, bal };
+      console.log(`[faucet] ${src.name} talep edildi (bakiye ${bal} zat):`, JSON.stringify(out).slice(0, 160));
+    } catch (e) {
+      state[src.name] = { at: now, error: String(e).slice(0, 300) };
+      console.error(`[faucet] ${src.name} başarısız:`, String(e).slice(0, 300));
+    }
+    writeState(o.stateFile, state);
+  }
+}
+
+/** Saatlik `faucetTick`. */
 export function startFaucetLoop(
   zcash: ZcashService,
   opsAddress: string,
-  { reserveZat = Number(process.env.ZKOY_FAUCET_RESERVE_ZAT ?? 200_000_000), everyMs = 3_600_000 } = {},
+  opts: Partial<FaucetOptions> = {},
 ): ReturnType<typeof setInterval> {
-  const tick = async () => {
-    const bal = await zcash.balance().catch(() => null);
-    if (bal === null || bal >= reserveZat) return;
-    const state = readState();
-    for (const src of SOURCES) {
-      const last = state[src.name];
-      if (last && !last.error && Date.now() - last.at < DAY_MS) continue;
-      if (last?.error && Date.now() - last.at < everyMs) continue;
-      try {
-        const out = await src.claim(opsAddress);
-        state[src.name] = { at: Date.now(), out };
-        console.log(`[faucet] ${src.name} talep edildi (bakiye ${bal} zat):`, JSON.stringify(out).slice(0, 160));
-      } catch (e) {
-        state[src.name] = { at: Date.now(), error: String(e).slice(0, 300) };
-        console.error(`[faucet] ${src.name} başarısız:`, String(e).slice(0, 300));
-      }
-      writeState(state);
-    }
-  };
+  const tick = () => faucetTick(zcash, opsAddress, opts).catch((e) => console.error("[faucet]", String(e).slice(0, 300)));
   void tick();
-  return setInterval(tick, everyMs);
+  return setInterval(tick, opts.everyMs ?? FAUCET_DEFAULTS.everyMs);
 }

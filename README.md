@@ -77,14 +77,14 @@ The memo format is specified in [docs/MEMOS.md](docs/MEMOS.md), enough to write 
  │ game engine   pure state machine; every move returns the memos to seal       │
  │ room layer    phases, host and Muhtar authority, public vs private views     │
  │ SQLite        games, unique devices, event log with txids, snapshots         │
- │ seal queue    durable, one tx per round, a failing room never blocks others  │
+ │ seal queue    durable, one tx per game step, a failing room blocks no other  │
  └──────────────────────────────────────────────────────────────────────────────┘
             │
             ▼
  zingo-cli (fork on Zakura Common crates) ──gRPC──▶ lightwalletd ──▶ Zcash testnet
 ```
 
-- **Tempo from the server, proof from the chain.** The game never waits for a block. Seals follow a few minutes behind, at most one transaction per round; a fast table's rounds share one.
+- **Tempo from the server, proof from the chain.** The game never waits for a block. Each step of the game goes out as its own transaction as soon as it closes: the deal (seats, commitment, role cards) when the game starts, the election, each night with its result at dawn, each day when the next night falls. Seals follow a few minutes behind; when sending is slower than the table, finished steps share a transaction.
 - **Nothing secret leaves the server early.** The public view never contains a living player's role or a night choice; each phone receives only its own card.
 - **Restart-safe.** Room state and the seal queue live in SQLite; a server restart resumes games where they stopped. The database is copied once a day to `data/backups/`.
 - **A table cannot get stuck or be flooded.** A vote someone walked away from can be closed after a minute, a table whose host dropped can be taken over, and nothing is sealed for a table that never starts. Moves are rate-limited and every memo is checked against the 512-byte limit before it is queued.

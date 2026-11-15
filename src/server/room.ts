@@ -95,6 +95,8 @@ export class Room {
   gameId: number | null = null;
   nightStartedAt: number | null = null;
   verdictStartedAt: number | null = null;
+  /** Son commit'teki faz: faz değişimi mühür paketini kapatır. */
+  private lastPhase: RoomState["phase"] = "LOBBY";
   gozcuLog: GozcuEntry[] = [];
   address = "";
   ufvk = "";
@@ -160,6 +162,7 @@ export class Room {
     room.gameId = s.gameId;
     room.nightStartedAt = s.nightStartedAt;
     room.verdictStartedAt = s.verdictStartedAt ?? null;
+    room.lastPhase = s.state.phase;
     room.gameMemos = s.gameMemos;
     room.seq = s.seq ?? s.gameMemos.length;
     room.gozcuLog = s.gozcuLog;
@@ -529,7 +532,11 @@ export class Room {
     this.lastActivity = Date.now();
     const opensNight =
       s.phase === "NIGHT" && events.some((e) => e.memo.t === "muhtar" || (e.memo.t === "phase" && e.memo.ph === "NIGHT"));
-    // Tur başına bir tx: yeni gece açılınca önceki tur (ya da seçim) mühürlenir.
+    const entered = s.phase !== this.lastPhase ? s.phase : null;
+    this.lastPhase = s.phase;
+    // Mühür paketleri oyunun kararlarını izler: dağıtım (kadro, kilit, kartlar),
+    // seçim, her gece, her gündüz. Gece açılınca önceki paket (seçim ya da
+    // gündüz) gider; dağıtım ve gece paketi aşağıda, kapanıştan hemen sonra.
     if (opensNight) {
       this.deps.seals.release(this.code);
       this.acts.clear();
@@ -543,6 +550,9 @@ export class Room {
       const ids = this.deps.db.logEvents(this.gameId, this.code, at.round, at.phase, events);
       for (const e of events) this.gameMemos.push(JSON.stringify(e.memo));
       this.deps.seals.enqueue(this.code, events, ids);
+      // Oyun başlar başlamaz dağıtım, sabah olur olmaz gecenin hamleleri ve
+      // sonucu zincire gider: sunucunun mühürsüz tuttuğu süre kısalır.
+      if (entered === "ELECTION" || entered === "DAWN") this.deps.seals.release(this.code);
     }
     if (opensNight) {
       this.nightStartedAt = Date.now();

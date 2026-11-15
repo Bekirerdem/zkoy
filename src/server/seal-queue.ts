@@ -1,7 +1,8 @@
 // Kalıcı mühür kuyruğu: oyun temposu zinciri asla beklemez (SPEC §7). Her
-// olay önce SQLite'a yazılır ve oda masada tutulur; oda turu kapatınca
+// olay önce SQLite'a yazılır ve oda masada tutulur; oda bir bölümü kapatınca
 // (`release`) o ana kadar biriken her şey tek tx olarak gider → oyun başına
-// "seçim + her tur + son" kadar tx. Süreç yeniden başlarsa kaldığı yerden
+// "dağıtım + seçim + her gece + her gündüz" kadar tx. Gönderim yavaşsa
+// bırakılanlar birleşir, kuyruk birikmez. Süreç yeniden başlarsa kaldığı yerden
 // devam eder (29 Ağu dersi: bellekteki kuyruk uykuda kayboldu).
 //
 // Bir odanın gönderimi düşerse yalnız o oda bekler (artan aralıkla yeniden

@@ -24,10 +24,11 @@ const alive = (room: Room) => room.state.players.filter((p) => p.alive).map((p) 
 const roleOf = (room: Room, id: string) => room.state.players.find((p) => p.id === id)!.role;
 
 /** Plays until END: vampires eat the first villager, the day lynches a living vampire. */
-async function playOut(room: Room, host: string) {
+async function playOut(room: Room, host: string, between?: () => Promise<void>) {
   const s = room.state;
   let guard = 0;
   while (s.phase !== "END" && guard++ < 60) {
+    if (between) await between();
     const liv = alive(room);
     if (s.phase === "ELECTION") {
       room.act(liv[1]!, { t: "act", a: "nominate" });
@@ -80,20 +81,29 @@ describe("Room", () => {
     expect(pub.seals.memoCount).toBeGreaterThan(20);
   });
 
-  test("tur başına bir tx: seçim + her gece açılışı + son", async () => {
+  test("mühür paketleri: dağıtım, seçim, her gece, her gündüz, son", async () => {
     const { room, d, pids } = await lobby(8);
     room.cmd(pids[0]!, { t: "cmd", c: "start" });
     await d.seals.flush();
-    expect(d.zcash.sent.length).toBe(0); // seçim bitmeden zincire bir şey gitmez
-    await playOut(room, pids[0]!);
+    // Dağıtım oyun başlar başlamaz gider; içinde henüz kimsenin hamlesi yok.
+    expect(d.zcash.sent.length).toBe(1);
+    const deal = d.zcash.sent[0]!.events.map((e) => e.memo);
+    expect(deal.some((m) => m.t === "seed")).toBe(true);
+    expect(deal.some((m) => m.t === "role")).toBe(true);
+    expect(deal.some((m) => m.t === "mvote" || m.t === "nom")).toBe(false);
+    // Masa yavaş oynar: her adımdan sonra kuyruk boşalır (insan temposu).
+    await playOut(room, pids[0]!, () => d.seals.flush());
     await d.seals.flush();
-    const batches = d.zcash.sent.map((b) => b.events.map((e) => e.memo));
-    const opensNight = (m: { t: string; ph?: string }) => m.t === "muhtar" || (m.t === "phase" && m.ph === "NIGHT");
-    const nights = batches.flat().filter((m) => m.t === "muhtar" || (m.t === "phase" && m.ph === "NIGHT")).length;
-    expect(batches.length).toBe(nights + 1);
-    expect(batches[0]!.some((m) => m.t === "seed")).toBe(true);
-    // Her sonraki tx geceyi açan hamleyle başlar (seçimi kapatan son oy dahil).
-    for (const b of batches.slice(1)) expect(b.findIndex((m) => opensNight(m as { t: string }))).toBeLessThanOrEqual(1);
+    const batches = d.zcash.sent.map((b) => b.events.map((e) => e.memo as { t: string; lynched?: unknown }));
+    const nightBatches = batches.filter((b) => b.some((m) => m.t === "night"));
+    expect(nightBatches.length).toBe(room.state.round);
+    for (const b of nightBatches) {
+      // Gece paketi gecenin sonucunu taşır, gündüzün hamlelerini taşımaz.
+      expect(b.some((m) => m.t === "result" && m.lynched === null)).toBe(true);
+      expect(b.some((m) => m.t === "accuse" || m.t === "verdict")).toBe(false);
+    }
+    // Gündüz paketleri geceden ayrı: dağıtım + seçim + her tur gece ve gündüz.
+    expect(batches.length).toBeGreaterThanOrEqual(2 + 2 * room.state.round - 1);
     expect(batches.at(-1)!.at(-1)!.t).toBe("gameroot");
   });
 

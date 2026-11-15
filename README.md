@@ -143,7 +143,8 @@ test/          bun test suites
 
 - **Live on testnet** at [zkoy.fun](https://zkoy.fun). The counters at [zkoy.fun/stats](https://zkoy.fun/stats) cover this rewrite only, and finished games are listed at [zkoy.fun/games](https://zkoy.fun/games) with their seal transactions. So far they hold one game, a bot rehearsal from October 2026; tables opened with `?test=1` are labelled and left out.
 - ZKöy began at the ZcashTR 48-hour challenge during Rlay Blockchain Week in Şirince (August 2026), where it took first place. The prototype was played there on the final day and later at two community events in Bursa; those games ran before this server and are not in its counters. The current version is a full rewrite of that prototype.
-- **Next:** an English interface, a solo demo you can play against bots, and the big-screen mode (narration and the village square on a projector, phones as controllers). The web version comes first; phone apps follow once it is played regularly.
+- **In Turkish and English.** The phone picks the language from the browser; the TR/EN button switches it, and `?lang=en` opens the game in English. Players at one table can use different languages.
+- **Next:** a solo demo you can play against bots, a demo video, and the big-screen mode (narration and the village square on a projector, phones as controllers). The web version comes first; phone apps follow once it is played regularly.
 
 ## License and security
 

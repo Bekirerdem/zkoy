@@ -10,6 +10,7 @@ import { MockZcashService } from "../zcash/mock";
 import { ZcashService } from "../zcash/service";
 import { ZingoService } from "../zcash/zingo";
 import { Db, openDb } from "./db";
+import { Lang, errorText } from "./i18n";
 import { ClientMsg, MAX_MSG_BYTES, ProtocolError, parseClientMsg } from "./protocol";
 import { Room } from "./room";
 import { SealQueue } from "./seal-queue";
@@ -53,6 +54,8 @@ interface WsData {
   device?: string;
   code?: string;
   pid?: string;
+  /** Hata mesajlarının dili (`hello`). */
+  lang?: Lang;
 }
 
 type Ws = ServerWebSocket<WsData>;
@@ -181,6 +184,7 @@ export function startServer(opts: ServerOptions = {}) {
   async function handle(ws: Ws, msg: ClientMsg) {
     if (msg.t === "hello") {
       ws.data.device = msg.device;
+      ws.data.lang = msg.lang ?? "tr";
       if (msg.code && msg.token) {
         const room = roomOf(msg.code);
         attach(ws, room, room.auth(msg.token));
@@ -387,7 +391,7 @@ export function startServer(opts: ServerOptions = {}) {
         } catch (e) {
           const known = e instanceof EngineError || e instanceof ProtocolError;
           if (!known) console.error("[ws] beklenmeyen hata:", e);
-          ws.send(JSON.stringify({ t: "error", e: known ? e.message : "sunucu hatası" }));
+          ws.send(JSON.stringify({ t: "error", e: errorText(known ? e.message : "sunucu hatası", ws.data.lang ?? "tr") }));
         }
       },
       close(ws) {

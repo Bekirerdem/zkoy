@@ -16,7 +16,7 @@
 
 | Mesaj | Ne zaman | Alanlar |
 |---|---|---|
-| `{"t":"hello","device":"…"}` | açılışta | isteğe bağlı `code` + `token` = yeniden bağlanma |
+| `{"t":"hello","device":"…"}` | açılışta | isteğe bağlı `code` + `token` = yeniden bağlanma; `lang: "tr"\|"en"` = hata mesajlarının dili (varsayılan `tr`) |
 | `{"t":"create","name":"Ali","rules":{"gozcu":null,"accusedVotes":false},"n":"9f2c…","test":false}` | oda kur | ad 1-16; `rules` isteğe bağlı (`gozcu`: `null` otomatik 13+, `true`, `false`); `n` ve `test` aşağıda |
 | `{"t":"join","code":"ACDE23","name":"Ayşe","n":"51ab…"}` | kodla gir | aynı cihaz aynı odaya yeniden girerse aynı koltuk |
 | `{"t":"watch","code":"ACDE23"}` | perde / seyirci | yalnız `state` alır |
@@ -97,7 +97,9 @@ Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir. S�
   "badges": null, "kahinScore": null,           // END'de dolu
   "reveal": null,                                // END: { seed, salt, commit, nonces, seedOk, ufvk, roomAddress }; salt = sunucunun sırrı
   "nightStartedAt": 1790000000000, "verdictStartedAt": null,
-  "announcements": [{ "at": 0, "kind": "info|dawn|verdict|end", "text": "…", "will": "…" }],
+  "announcements": [{ "at": 0, "kind": "info|dawn|verdict|end", "text": "… (Türkçe)", "en": "… (English)", "will": "…" }],
+  "story": [{ "title": "1. gece", "kind": "night|day|start", "lines": [{ "text": "…", "sealed": true }] }],
+  "storyEn": [{ "title": "Night 1", "kind": "night", "lines": [{ "text": "…", "sealed": true }] }],
   "seals": { "chain": "zingo|mock", "txCount": 4, "memoCount": 31, "pending": 2, "recent": ["txid…"] }
 }
 ```

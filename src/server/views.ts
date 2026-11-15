@@ -89,6 +89,7 @@ export function publicView(room: Room, seals: SealQueue, chain: string) {
         }
       : null,
     story: end ? room.story() : null,
+    storyEn: end ? room.story("en") : null,
     nightStartedAt: room.nightStartedAt,
     verdictStartedAt: room.verdictStartedAt,
     announcements: room.announcements.slice(-12),

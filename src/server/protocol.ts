@@ -33,7 +33,7 @@ export type ActMsg = { t: "act"; a: ActKind; x?: string; y?: boolean; txt?: stri
 export type CmdMsg = { t: "cmd"; c: CmdKind; x?: string };
 
 export type ClientMsg =
-  | { t: "hello"; device: string; code?: string; token?: string }
+  | { t: "hello"; device: string; code?: string; token?: string; lang?: "tr" | "en" }
   | { t: "create"; name: string; rules?: Partial<RoomRules>; n: string; test: boolean }
   | { t: "join"; code: string; name: string; n: string }
   | { t: "watch"; code: string }
@@ -72,7 +72,13 @@ export function parseClientMsg(raw: string): ClientMsg {
     case "hello":
       if (!str(m.device, 64) || !optStr(m.code, 8) || !optStr(m.token, 64))
         throw new ProtocolError("geçersiz hello");
-      return m as ClientMsg;
+      return {
+        t: "hello",
+        device: m.device,
+        code: m.code as string | undefined,
+        token: m.token as string | undefined,
+        lang: m.lang === "en" ? "en" : "tr",
+      };
     case "create": {
       if (!str(m.name, 16)) throw new ProtocolError("ad 1-16 karakter olmalı");
       const r = (m.rules ?? {}) as Record<string, unknown>;

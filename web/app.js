@@ -1,5 +1,7 @@
 // ZKöy web istemcisi (A · Fener). Tek WebSocket, sunucu sözleşmesi docs/API.md.
 // Derleme adımı yok; her değişimde ekran baştan çizilir, açık olan alan korunur.
+// İki dil: Türkçe ve İngilizce. Her metin L(tr, en) ile yazılır; dil değişince
+// sayfa yeniden yüklenir (oturum telefonda saklı, masadan düşülmez).
 "use strict";
 
 /* ── küçük yardımcılar ── */
@@ -9,6 +11,34 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   del(k) { try { localStorage.removeItem(k); } catch {} },
 };
+
+/* ── dil: ?lang=en, sonra bu telefonda seçilen, sonra tarayıcının dili ── */
+
+const LANG = (() => {
+  const q = new URLSearchParams(location.search).get("lang");
+  if (q === "en" || q === "tr") { store.set("zkoy.lang", q); return q; }
+  const saved = store.get("zkoy.lang");
+  if (saved === "en" || saved === "tr") return saved;
+  return (navigator.language || "tr").toLowerCase().startsWith("tr") ? "tr" : "en";
+})();
+const EN = LANG === "en";
+const L = (tr, en) => (EN ? en : tr);
+const LOC = EN ? "en" : "tr";
+document.documentElement.lang = LANG;
+document.title = L("ZKöy · Vampir Köylü", "ZKöy · Vampire Village");
+
+function setLang(l) {
+  store.set("zkoy.lang", l);
+  const u = new URL(location.href);
+  u.searchParams.delete("lang");
+  location.replace(u.toString());
+}
+const langButton = () => h("button", { class: "ghost small", lang: EN ? "tr" : "en", "aria-label": L("Switch to English", "Türkçeye geç"), onclick: () => setLang(EN ? "tr" : "en") }, EN ? "TR" : "EN");
+
+const nightN = (r) => L(`${r}. gece`, `Night ${r}`);
+const dayN = (r) => L(`${r}. gün`, `Day ${r}`);
+/** Sunucu duyuruları iki dilde gelir. */
+const annText = (a) => (EN && a.en ? a.en : a.text);
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -29,45 +59,76 @@ const device = store.get("zkoy.device") || (() => {
   return d;
 })();
 
+const NIGHT_LOOK = L("Ebe “gece çöküyor” deyince telefonuna bak.", "When the narrator says “night falls”, look at your phone.");
 const ROLE = {
   vampir: {
-    name: "Vampir", tag: "GECE · AV",
-    text: "Köyü içeriden avlarsın. Sayınız köyün geri kalanına eşitlenince kazanırsınız.",
-    steps: ["Ebe “gece çöküyor” deyince telefonuna bak.", "Takımınla aynı kurbanı seç; takımının seçimini ekranda görürsün.", "Sabah sakin ol. Gündüz köylü gibi konuş, suçu başkasına at."],
+    name: L("Vampir", "Vampire"), tag: L("GECE · AV", "NIGHT · HUNT"),
+    text: L("Köyü içeriden avlarsın. Sayınız köyün geri kalanına eşitlenince kazanırsınız.", "You hunt the village from inside. You win when your number equals the rest of the village."),
+    steps: [NIGHT_LOOK,
+      L("Takımınla aynı kurbanı seç; takımının seçimini ekranda görürsün.", "Pick the same victim as your team; you see their picks on screen."),
+      L("Sabah sakin ol. Gündüz köylü gibi konuş, suçu başkasına at.", "Stay calm in the morning. By day, talk like a villager and point at someone else.")],
   },
   doktor: {
-    name: "Doktor", tag: "GECE · KORUMA",
-    text: "Köyün hayat sigortasısın. Koruduğun kişi o gece ölmez.",
-    steps: ["Ebe “gece çöküyor” deyince telefonuna bak.", "Birini koru; kendini de koruyabilirsin.", "Doktor olduğunu belli etme, vampirlerin ilk hedefi olursun."],
+    name: L("Doktor", "Doctor"), tag: L("GECE · KORUMA", "NIGHT · PROTECT"),
+    text: L("Köyün hayat sigortasısın. Koruduğun kişi o gece ölmez.", "You are the village's life insurance. Whoever you protect does not die that night."),
+    steps: [NIGHT_LOOK,
+      L("Birini koru; kendini de koruyabilirsin.", "Protect someone; you may protect yourself."),
+      L("Doktor olduğunu belli etme, vampirlerin ilk hedefi olursun.", "Do not reveal you are the doctor, or you become the vampires' first target.")],
   },
   gozcu: {
-    name: "Gözcü", tag: "GECE · SORGU",
-    text: "Gece birine bakarsın: vampir mi, değil mi. Yalnız sen öğrenirsin.",
-    steps: ["Ebe “gece çöküyor” deyince telefonuna bak.", "Birini sorgula; cevap sabah ekranında.", "Bildiğini gündüz akıllıca kullan; açık edersen avlanırsın."],
+    name: L("Gözcü", "Seer"), tag: L("GECE · SORGU", "NIGHT · CHECK"),
+    text: L("Gece birine bakarsın: vampir mi, değil mi. Yalnız sen öğrenirsin.", "Each night you look at one player: vampire or not. Only you learn it."),
+    steps: [NIGHT_LOOK,
+      L("Birini sorgula; cevap sabah ekranında.", "Check someone; the answer is on your morning screen."),
+      L("Bildiğini gündüz akıllıca kullan; açık edersen avlanırsın.", "Use what you know wisely by day; reveal it and you will be hunted.")],
   },
   deli: {
-    name: "Deli", tag: "GÜNDÜZ · OYUN",
-    text: "Köy seni asarsa sen de kazanırsın, kim kazanırsa kazansın.",
-    steps: ["Gece uyursun, telefonun “köy uyuyor” der.", "Gündüz şüpheli görün ama belli etme.", "Asılırsan zafer senin."],
+    name: L("Deli", "Fool"), tag: L("GÜNDÜZ · OYUN", "DAY · PLAY"),
+    text: L("Köy seni asarsa sen de kazanırsın, kim kazanırsa kazansın.", "If the village hangs you, you win too, whoever else wins."),
+    steps: [L("Gece uyursun, telefonun “köy uyuyor” der.", "You sleep at night; your phone says “the village sleeps”."),
+      L("Gündüz şüpheli görün ama belli etme.", "Look suspicious by day, but not too obviously."),
+      L("Asılırsan zafer senin.", "If you are hanged, the win is yours.")],
   },
   koylu: {
-    name: "Köylü", tag: "GÜNDÜZ · AKIL",
-    text: "Gece uyursun. Gündüz konuşur, dinler, doğru kişiyi asarsın.",
-    steps: ["Gece gözlerini kapat, telefonun “köy uyuyor” der.", "Gündüz konuş, dinle, çelişkileri yakala.", "Doğru kişiyi suçla; bütün vampirler asılınca köy kazanır."],
+    name: L("Köylü", "Villager"), tag: L("GÜNDÜZ · AKIL", "DAY · WITS"),
+    text: L("Gece uyursun. Gündüz konuşur, dinler, doğru kişiyi asarsın.", "You sleep at night. By day you talk, listen and hang the right person."),
+    steps: [L("Gece gözlerini kapat, telefonun “köy uyuyor” der.", "Close your eyes at night; your phone says “the village sleeps”."),
+      L("Gündüz konuş, dinle, çelişkileri yakala.", "Talk and listen by day; catch the contradictions."),
+      L("Doğru kişiyi suçla; bütün vampirler asılınca köy kazanır.", "Accuse the right person; the village wins when every vampire is hanged.")],
   },
 };
 
 /** İlk açılış: köyün 5 kuralı (tasarım 13-17). */
 const RULES = [
-  { theme: "night", title: "Kim kimdir?", lead: "Rolünü yalnız sen bilirsin. Masadakiler tahmin eder.", roles: true },
-  { theme: "night rule-night", big: "gece", title: "Herkes gözünü kapatır.", lines: [["Vampirler", "bir kurban seçer.", "#F2D9D5"], ["Doktor", "birini korur.", "#D7F0E6"], ["Gözcü", "birine bakar.", "#E1DBFA"]], foot: "Hepsi telefondan, sessizce. Rolü olmayanın ekranında yalnız “Köy uyuyor” yazar; kimin hamle yaptığını ekrandan kimse anlayamaz." },
-  { theme: "day", title: "Gündüz dava kurulur.", steps: [["Suçla.", "Şüphelendiğin kişiye dokun."], ["Destek topla.", "En az 3 kişi desteklerse dava açılır (büyük masada 4-5). Muhtar'ın desteği 2 sayılır."], ["Savunma.", "Sanık konuşur, kimse sözünü kesmez."], ["Açık oy.", "Assın ya da asmasın. Oylar herkesin ekranında."], ["Yarıyı geçerse asılır", "ve rolü açıklanır. Geçmezse beraat eder, o gün bir daha yargılanmaz."]], foot: "Sanık kendi davasında oy kullanmaz. Gün bitince Muhtar geceye geçirir." },
-  { theme: "day dawn", badge: "Muhtar ×2", title: "Köyün bir Muhtarı var.", lines: [["", "Oyunun başında seçilir. Aday çıkmazsa kura çekilir."], ["", "Davada oyu iki sayılır (13 ve üstü oyuncuda üç)."], ["", "Günü yönetir: güne geçer, oylamayı açar, günü kapatır."], ["", "Ölürse makamı birine bırakır."]], foot: "Muhtar bir makam, rol değil. Vampir de Muhtar olabilir." },
-  { theme: "night end", title: "Kim kazanır?", win: true },
+  { theme: "night", title: L("Kim kimdir?", "Who is who?"), lead: L("Rolünü yalnız sen bilirsin. Masadakiler tahmin eder.", "Only you know your role. The table has to guess."), roles: true },
+  { theme: "night rule-night", big: L("gece", "night"), title: L("Herkes gözünü kapatır.", "Everyone closes their eyes."),
+    lines: [[L("Vampirler", "Vampires"), L("bir kurban seçer.", "pick a victim."), "#F2D9D5"], [L("Doktor", "The doctor"), L("birini korur.", "protects someone."), "#D7F0E6"], [L("Gözcü", "The seer"), L("birine bakar.", "checks someone."), "#E1DBFA"]],
+    foot: L("Hepsi telefondan, sessizce. Rolü olmayanın ekranında yalnız “Köy uyuyor” yazar; kimin hamle yaptığını ekrandan kimse anlayamaz.", "All on the phone, in silence. A phone without a night role only says “The village sleeps”, so nobody can tell from a screen who made a move.") },
+  { theme: "day", title: L("Gündüz dava kurulur.", "By day, the village holds trials."),
+    steps: [
+      [L("Suçla.", "Accuse."), L("Şüphelendiğin kişiye dokun.", "Tap the player you suspect.")],
+      [L("Destek topla.", "Gather support."), L("En az 3 kişi desteklerse dava açılır (büyük masada 4-5). Muhtar'ın desteği 2 sayılır.", "With at least 3 backers a trial opens (4-5 at a big table). The Muhtar's support counts twice.")],
+      [L("Savunma.", "Defence."), L("Sanık konuşur, kimse sözünü kesmez.", "The accused speaks; nobody interrupts.")],
+      [L("Açık oy.", "Open vote."), L("Assın ya da asmasın. Oylar herkesin ekranında.", "Hang or spare. Every vote shows on every screen.")],
+      [L("Yarıyı geçerse asılır", "More than half hangs"), L("ve rolü açıklanır. Geçmezse beraat eder, o gün bir daha yargılanmaz.", "and the role is revealed. Otherwise the accused is acquitted and cannot be tried again that day.")]],
+    foot: L("Sanık kendi davasında oy kullanmaz. Gün bitince Muhtar geceye geçirir.", "The accused does not vote in their own trial. When the day is over, the Muhtar brings the night.") },
+  { theme: "day dawn", badge: "Muhtar ×2", title: L("Köyün bir Muhtarı var.", "The village has a Muhtar."),
+    lines: [["", L("Oyunun başında seçilir. Aday çıkmazsa kura çekilir.", "Elected at the start. If nobody stands, lots are drawn.")],
+      ["", L("Davada oyu iki sayılır (13 ve üstü oyuncuda üç).", "Their vote counts twice in a trial (three times with 13 or more players).")],
+      ["", L("Günü yönetir: güne geçer, oylamayı açar, günü kapatır.", "They run the day: start it, open the vote, close it.")],
+      ["", L("Ölürse makamı birine bırakır.", "If they die, they hand the office to someone.")]],
+    foot: L("Muhtar bir makam, rol değil. Vampir de Muhtar olabilir.", "Muhtar (headman) is an office, not a role. A vampire can be Muhtar too.") },
+  { theme: "night end", title: L("Kim kazanır?", "Who wins?"), win: true },
 ];
 /** "O bir ___." — ünlü uyumu elle. */
-const WAS = { vampir: "vampirdi", doktor: "doktordu", gozcu: "gözcüydü", deli: "deliydi", koylu: "köylüydü" };
-const PHASE = { LOBBY: "Oda", ELECTION: "Seçim", NIGHT: "Gece", DAWN: "Şafak", DAY: "Meydan", EXECUTION: "İnfaz", END: "Son" };
+const WAS = EN
+  ? { vampir: "a vampire", doktor: "the doctor", gozcu: "the seer", deli: "the fool", koylu: "a villager" }
+  : { vampir: "vampirdi", doktor: "doktordu", gozcu: "gözcüydü", deli: "deliydi", koylu: "köylüydü" };
+const PHASE = EN
+  ? { LOBBY: "Room", ELECTION: "Election", NIGHT: "Night", DAWN: "Dawn", DAY: "Square", EXECUTION: "Execution", END: "End" }
+  : { LOBBY: "Oda", ELECTION: "Seçim", NIGHT: "Gece", DAWN: "Şafak", DAY: "Meydan", EXECUTION: "İnfaz", END: "Son" };
+/** "O bir köylüydü." / "They were a villager." */
+const wasLine = (role) => h("p", { style: "font-size:20px" }, L("O bir ", "They were "), h("b", {}, WAS[role] || "?"), ".");
 
 /* ── durum ── */
 
@@ -125,9 +186,10 @@ function markEbe(key) {
   render();
 }
 
+const NO_LINK = () => L("Bağlantı yok, yeniden bağlanıyor…", "No connection, reconnecting…");
 function send(msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
-  else toast("Bağlantı yok, yeniden bağlanıyor…");
+  else toast(NO_LINK());
 }
 const act = (a, extra) => send({ t: "act", a, ...extra });
 const cmd = (c, extra) => send({ t: "cmd", c, ...extra });
@@ -151,10 +213,10 @@ function connect() {
     online = true;
     retry = 0;
     if (watchCode) {
-      send({ t: "hello", device });
+      send({ t: "hello", device, lang: LANG });
       send({ t: "watch", code: watchCode.toUpperCase() });
-    } else if (session) send({ t: "hello", device, code: session.code, token: session.token });
-    else send({ t: "hello", device });
+    } else if (session) send({ t: "hello", device, code: session.code, token: session.token, lang: LANG });
+    else send({ t: "hello", device, lang: LANG });
     render();
   };
   ws.onmessage = (ev) => {
@@ -177,7 +239,7 @@ function connect() {
     } else if (f.t === "me") {
       m = f.m;
     } else if (f.t === "error") {
-      if (/oturum geçersiz|böyle bir oda yok/.test(f.e) && session) {
+      if (/oturum geçersiz|böyle bir oda yok|Session expired|No such room/.test(f.e) && session) {
         store.del("zkoy.session");
         session = null;
         s = m = null;
@@ -219,8 +281,8 @@ function render() {
   // Kurucu koptuysa masa sahipsiz kalmasın: her ekranın başında devralma çağrısı.
   if (!watchCode && session && s && m && m.can.includes("claimHost") && rulesStep === null)
     view.el.prepend(h("div", { class: "callout" },
-      h("span", { style: "flex-grow:1" }, h("small", {}, "KURUCU KOPTU"), `${nameOf(s.hostPid)} bir süredir bağlı değil.`),
-      h("button", { onclick: () => cmd("claimHost") }, "Masayı devral")));
+      h("span", { style: "flex-grow:1" }, h("small", {}, L("KURUCU KOPTU", "HOST DROPPED OUT")), L(`${nameOf(s.hostPid)} bir süredir bağlı değil.`, `${nameOf(s.hostPid)} has been offline for a while.`)),
+      h("button", { onclick: () => cmd("claimHost") }, L("Masayı devral", "Take over the table"))));
   document.body.className = view.theme;
   // Sayfanın en dış zemini ve tarayıcı çubuğu da temayla döner (iOS esnemesinde beyaz görünmesin).
   const ground = view.theme.includes("day") ? "#FAF7EF" : "#11101B";
@@ -253,36 +315,41 @@ function pendingEbe() {
 
 function viewEbe(e) {
   const done = () => markEbe(e.key);
-  const head = (dark) => h("div", { class: "bar" }, h("span", { class: "mono", style: `font-size:12px;letter-spacing:0.1em;color:${dark ? "var(--gold)" : "#8A5F00"}` }, "EBE ANLATIYOR"), bar("").lastChild);
+  const head = (dark) => h("div", { class: "bar" }, h("span", { class: "mono", style: `font-size:12px;letter-spacing:0.1em;color:${dark ? "var(--gold)" : "#8A5F00"}` }, L("EBE ANLATIYOR", "THE NARRATOR SAYS")), bar("").lastChild);
   if (e.kind === "sec") {
     const facts = [
-      ["01", h("span", {}, "Muhtar'ın oyu davada ", h("b", {}, s.muhtarWeight === 3 ? "üç" : "iki"), " sayılır.")],
-      ["02", "Günü o yönetir: güne geçer, oylamayı açar, günü kapatır."],
-      ["03", "Ölürse makamı birine bırakır. Vampir de Muhtar olabilir."],
+      ["01", EN
+        ? h("span", {}, "The Muhtar's vote counts ", h("b", {}, s.muhtarWeight === 3 ? "three times" : "twice"), " in a trial.")
+        : h("span", {}, "Muhtar'ın oyu davada ", h("b", {}, s.muhtarWeight === 3 ? "üç" : "iki"), " sayılır.")],
+      ["02", L("Günü o yönetir: güne geçer, oylamayı açar, günü kapatır.", "They run the day: start it, open the vote, close it.")],
+      ["03", L("Ölürse makamı birine bırakır. Vampir de Muhtar olabilir.", "If they die, they hand the office to someone. A vampire can be Muhtar too.")],
     ];
     return {
       theme: "night ebe-sec",
       el: h("section", { class: "screen" }, head(true),
         h("div", { class: "dawn-hero" },
-          h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, "ROLLER DAĞITILDI"),
-          h("h1", { class: "ebe-title" }, "Önce bir Muhtar seçin."),
+          h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, L("ROLLER DAĞITILDI", "ROLES ARE DEALT")),
+          h("h1", { class: "ebe-title" }, L("Önce bir Muhtar seçin.", "First, elect a Muhtar.")),
           h("div", { class: "facts" }, facts.map(([n, t]) => h("div", {}, h("span", { class: "mono", style: "color:var(--gold)" }, n), h("span", {}, t)))),
-          h("p", { class: "muted" }, "Aday olmak isteyen elini kaldırsın. Aday çıkmazsa kura çekilir.")),
-        h("button", { class: "btn", onclick: done }, "Seçime geç")),
+          h("p", { class: "muted" }, L("Aday olmak isteyen elini kaldırsın. Aday çıkmazsa kura çekilir.", "Whoever wants to stand, raise a hand. If nobody does, lots are drawn."))),
+        h("button", { class: "btn", onclick: done }, L("Seçime geç", "Go to the election"))),
     };
   }
   if (e.kind === "gece") {
     const actor = ["vampir", "doktor", "gozcu"].includes(m.role);
+    const muhtarTag = s.muhtar ? `MUHTAR: ${nameOf(s.muhtar).toLocaleUpperCase(LOC)} · ` : "";
     return {
       theme: "night ebe-gece",
       el: h("section", { class: "screen" }, head(true),
         h("div", { class: "dawn-hero", style: "align-items:center;text-align:center" },
           h("div", { class: "lantern dim", "aria-hidden": "true" }),
-          h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, `${s.muhtar ? `MUHTAR: ${nameOf(s.muhtar).toLocaleUpperCase("tr")} · ` : ""}${s.round}. GECE`),
-          h("h1", { class: "ebe-title big" }, "Gece çöküyor."),
-          h("p", { style: "max-width:300px;font-size:18px" }, "Herkes gözlerini kapatsın. Rolü olan telefonuna baksın, kimse konuşmasın."),
-          h("p", { class: "muted", style: "max-width:290px" }, actor ? "Senin bu gece bir hamlen var. Sessizce yap, sonra telefonu masaya bırak." : "Sabah olunca ekranın aydınlanır. O zamana kadar masaya bırak.")),
-        h("button", { class: actor ? "btn" : "ghost", onclick: done }, actor ? "Hamleme geç" : "Gözlerim kapalı")),
+          h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, `${muhtarTag}${L(`${s.round}. GECE`, `NIGHT ${s.round}`)}`),
+          h("h1", { class: "ebe-title big" }, L("Gece çöküyor.", "Night falls.")),
+          h("p", { style: "max-width:300px;font-size:18px" }, L("Herkes gözlerini kapatsın. Rolü olan telefonuna baksın, kimse konuşmasın.", "Everyone close your eyes. If you have a role, look at your phone. Nobody talks.")),
+          h("p", { class: "muted", style: "max-width:290px" }, actor
+            ? L("Senin bu gece bir hamlen var. Sessizce yap, sonra telefonu masaya bırak.", "You have a move tonight. Make it quietly, then put the phone down.")
+            : L("Sabah olunca ekranın aydınlanır. O zamana kadar masaya bırak.", "Your screen lights up when morning comes. Until then, leave it on the table."))),
+        h("button", { class: actor ? "btn" : "ghost", onclick: done }, actor ? L("Hamleme geç", "Go to my move") : L("Gözlerim kapalı", "My eyes are closed"))),
     };
   }
   const t = s.day.trial;
@@ -291,15 +358,15 @@ function viewEbe(e) {
     theme: "day",
     el: h("section", { class: "screen" }, head(false),
       h("div", { class: "dawn-hero" },
-        h("span", { class: "mono", style: "letter-spacing:0.1em;color:var(--wax)" }, `${s.round}. GÜN · DAVA AÇILDI`),
-        h("h1", { class: "ebe-title" }, mine ? "Dava sana açıldı." : `${nameOf(t.accused)} yargılanıyor.`),
+        h("span", { class: "mono", style: "letter-spacing:0.1em;color:var(--wax)" }, L(`${s.round}. GÜN · DAVA AÇILDI`, `DAY ${s.round} · TRIAL OPENED`)),
+        h("h1", { class: "ebe-title" }, mine ? L("Dava sana açıldı.", "You are on trial.") : L(`${nameOf(t.accused)} yargılanıyor.`, `${nameOf(t.accused)} is on trial.`)),
         h("div", { class: "will" },
-          h("div", { class: "kv" }, h("span", { class: "muted" }, "Suçlayan"), h("b", {}, nameOf(t.accuser))),
-          h("div", { class: "kv" }, h("span", { class: "muted" }, "Destekleyenler"), h("b", { style: "text-align:right" }, (t.backers || [t.seconder]).filter((b) => b !== t.accuser).map(nameOf).join(", ")))),
+          h("div", { class: "kv" }, h("span", { class: "muted" }, L("Suçlayan", "Accuser")), h("b", {}, nameOf(t.accuser))),
+          h("div", { class: "kv" }, h("span", { class: "muted" }, L("Destekleyenler", "Backers")), h("b", { style: "text-align:right" }, (t.backers || [t.seconder]).filter((b) => b !== t.accuser).map(nameOf).join(", ")))),
         h("p", { style: "font-size:18px" }, mine
-          ? "Şimdi sen konuşuyorsun. Masaya kendini savun; bitince “Savunmam bitti”ye bas, oylama açılsın."
-          : `Şimdi ${nameOf(t.accused)} konuşuyor. Sözünü kesmeyin. Savunması bitince ya da Muhtar derse oylama açılır.`)),
-      h("button", { class: "btn", onclick: done }, mine ? "Savunmaya geç" : "Dinliyorum")),
+          ? L("Şimdi sen konuşuyorsun. Masaya kendini savun; bitince “Savunmam bitti”ye bas, oylama açılsın.", "Your turn to speak. Defend yourself to the table; when you are done, press “My defence is over” and the vote opens.")
+          : L(`Şimdi ${nameOf(t.accused)} konuşuyor. Sözünü kesmeyin. Savunması bitince ya da Muhtar derse oylama açılır.`, `${nameOf(t.accused)} speaks now. Do not interrupt. The vote opens when they are done or the Muhtar says so.`))),
+      h("button", { class: "btn", onclick: done }, mine ? L("Savunmaya geç", "Go to my defence") : L("Dinliyorum", "I'm listening"))),
   };
 }
 
@@ -319,18 +386,30 @@ function viewRules(i) {
   const back = () => { rulesStep = i - 1; render(); };
   let body;
   if (r.roles) {
+    const short = {
+      vampir: L("Gece takımıyla birini avlar. Gündüz köylü gibi davranır.", "Hunts someone with their team at night. Acts like a villager by day."),
+      koylu: L("Gece uyur. Gündüz konuşur, dinler, doğru kişiyi asar.", "Sleeps at night. By day, talks, listens and hangs the right person."),
+      doktor: L("Her gece birini korur, kendini de. Koruduğu ölmez.", "Protects someone every night, themselves included. The protected one does not die."),
+      gozcu: L("Her gece birine bakar: vampir mi, değil mi.", "Checks one player every night: vampire or not."),
+      deli: L("Köy onu asarsa o da kazanır.", "Wins too if the village hangs them."),
+    };
     body = h("div", { class: "stack" }, ["vampir", "koylu", "doktor", "gozcu", "deli"].map((k) =>
       h("div", { class: `rolebox ${k}` },
-        h("span", { class: "rn" }, ROLE[k].name, k === "gozcu" ? h("small", {}, " 13+ oyuncuda") : k === "deli" ? h("small", {}, " 8+ oyuncuda") : null),
-        h("span", {}, { vampir: "Gece takımıyla birini avlar. Gündüz köylü gibi davranır.", koylu: "Gece uyur. Gündüz konuşur, dinler, doğru kişiyi asar.", doktor: "Her gece birini korur, kendini de. Koruduğu ölmez.", gozcu: "Her gece birine bakar: vampir mi, değil mi.", deli: "Köy onu asarsa o da kazanır." }[k]))));
+        h("span", { class: "rn" }, ROLE[k].name, k === "gozcu" ? h("small", {}, L(" 13+ oyuncuda", " 13+ players")) : k === "deli" ? h("small", {}, L(" 8+ oyuncuda", " 8+ players")) : null),
+        h("span", {}, short[k]))));
   } else if (r.steps) {
     body = h("div", { class: "rows" }, r.steps.map(([b, t], j) =>
       h("div", { class: "row step" }, h("span", { class: "mono", style: "color:var(--wax)" }, `0${j + 1}`), h("span", {}, h("b", {}, b), " ", t))));
   } else if (r.win) {
+    const wins = [
+      [L("Köy", "Village"), L("Bütün vampirler asılınca.", "When every vampire is hanged."), ""],
+      [L("Vampirler", "Vampires"), L("Sayıları köyün geri kalanına eşitlenince.", "When their number equals the rest of the village."), "#F2D9D5"],
+      [L("Deli", "Fool"), L("Köy onu asarsa, kim kazanırsa kazansın.", "If the village hangs them, whoever else wins."), "#F6E7C0"],
+    ];
     body = h("div", { class: "stack" },
-      h("div", { class: "rows" }, [["Köy", "Bütün vampirler asılınca.", ""], ["Vampirler", "Sayıları köyün geri kalanına eşitlenince.", "#F2D9D5"], ["Deli", "Köy onu asarsa, kim kazanırsa kazansın.", "#F6E7C0"]].map(([n, t, c]) =>
+      h("div", { class: "rows" }, wins.map(([n, t, c]) =>
         h("div", { class: "row", style: "flex-direction:column;align-items:flex-start;gap:4px;padding:14px 0" }, h("span", { style: `font-family:var(--d-font);font-weight:800;font-size:22px;${c ? `color:${c}` : ""}` }, n), h("span", { class: "muted", style: "font-size:16px" }, t)))),
-      h("div", { class: "ledger" }, h("span", { class: "t" }, "● MÜHÜR"), h("span", {}, "Her gece hamlesi ve her oy mühürlenir. Oyun bitince kim ne yaptı herkes görür; kimse “ben o gece onu seçmedim” diyemez.")));
+      h("div", { class: "ledger" }, h("span", { class: "t" }, L("● MÜHÜR", "● SEAL")), h("span", {}, L("Her gece hamlesi ve her oy mühürlenir. Oyun bitince kim ne yaptı herkes görür; kimse “ben o gece onu seçmedim” diyemez.", "Every night move and every vote is sealed. When the game ends everyone sees who did what; nobody can say “I didn't pick them that night”."))));
   } else {
     body = h("div", { class: "stack", style: "gap:14px" },
       r.big && h("span", { class: "rule-big", "aria-hidden": "true" }, r.big),
@@ -340,40 +419,42 @@ function viewRules(i) {
   return {
     theme: r.theme,
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `Köyün kuralları · ${i + 1} / ${RULES.length}`), !last && h("button", { class: "ghost small", onclick: closeRules }, "Atla")),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${L("Köyün kuralları", "How to play")} · ${i + 1} / ${RULES.length}`), !last && h("button", { class: "ghost small", onclick: closeRules }, L("Atla", "Skip"))),
       h("h1", { class: "rule-title", style: r.win ? "color:var(--gold)" : "" }, r.title),
       r.lead && h("p", {}, r.lead),
       body,
       r.foot && h("p", { class: "muted" }, r.foot),
       h("div", { class: "rule-nav push" }, dots,
-        i > 0 && h("button", { class: "ghost", onclick: back }, "Geri"),
-        h("button", { class: "btn", onclick: next }, last ? "Hazırım" : "İleri"))),
+        i > 0 && h("button", { class: "ghost", onclick: back }, L("Geri", "Back")),
+        h("button", { class: "btn", onclick: next }, last ? L("Hazırım", "I'm ready") : L("İleri", "Next")))),
   };
 }
 
 /* ── oda kurma (tasarım 18) ── */
+
+const NAME_FIRST = () => L("Önce adını yaz.", "Write your name first.");
 
 function viewSetup() {
   const seg = (field, options) => h("div", { class: "seg", role: "radiogroup" }, options.map(([v, label]) =>
     h("button", { role: "radio", "aria-checked": String(setupRules[field] === v), class: setupRules[field] === v ? "on" : "", onclick: () => { setupRules[field] = v; render(); } }, label)));
   const create = () => {
     const name = (draft.name || "").trim();
-    if (!name) { setup = false; render(); return toast("Önce adını yaz."); }
+    if (!name) { setup = false; render(); return toast(NAME_FIRST()); }
     send({ t: "create", name, rules: setupRules, n: nonce(), test: testMode });
   };
   return {
     theme: "night",
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("button", { class: "ghost small", onclick: () => { setup = false; render(); } }, "← Geri"), h("span", { class: "eyebrow" }, "Oda kur")),
-      h("h1", {}, "Masanın kuralları"),
+      h("div", { class: "bar" }, h("button", { class: "ghost small", onclick: () => { setup = false; render(); } }, L("← Geri", "← Back")), h("span", { class: "eyebrow" }, L("Oda kur", "Create a room"))),
+      h("h1", {}, L("Masanın kuralları", "Table rules")),
       h("div", { class: "stack" },
-        h("span", { class: "q" }, "Gözcü olsun mu?"),
-        h("span", { class: "muted" }, "Küçük masada gözcü vampiri çabuk bulur."),
-        seg("gozcu", [[null, "Otomatik"], [true, "Var"], [false, "Yok"]]),
-        h("span", { class: "mono muted", style: "font-size:12px" }, "otomatik = 13 ve üstü oyuncuda var")),
+        h("span", { class: "q" }, L("Gözcü olsun mu?", "Should there be a seer?")),
+        h("span", { class: "muted" }, L("Küçük masada gözcü vampiri çabuk bulur.", "At a small table the seer finds the vampire fast.")),
+        seg("gozcu", [[null, L("Otomatik", "Auto")], [true, L("Var", "Yes")], [false, L("Yok", "No")]]),
+        h("span", { class: "mono muted", style: "font-size:12px" }, L("otomatik = 13 ve üstü oyuncuda var", "auto = yes with 13 or more players"))),
       h("div", { class: "stack push" },
-        h("span", { class: "muted" }, "İlk oyunsa varsayılanlar iyi. Sonra değiştirirsiniz."),
-        h("button", { class: "btn", onclick: create }, "Odayı kur"))),
+        h("span", { class: "muted" }, L("İlk oyunsa varsayılanlar iyi. Sonra değiştirirsiniz.", "The defaults suit a first game. You can change them later.")),
+        h("button", { class: "btn", onclick: create }, L("Odayı kur", "Create the room")))),
   };
 }
 
@@ -382,20 +463,22 @@ function bar(label) {
   return h("div", { class: "bar" },
     h("span", { class: "eyebrow" }, label),
     online
-      ? seals && h("span", { class: "seal", title: "Zincire yazılan kayıtlar" }, `● ${seals.memoCount} mühür${seals.pending ? ` · ${seals.pending} yolda` : ""}`)
-      : h("span", { class: "offline" }, "bağlantı koptu…"));
+      ? seals && h("span", { class: "seal", title: L("Zincire yazılan kayıtlar", "Records written to chain") },
+        L(`● ${seals.memoCount} mühür${seals.pending ? ` · ${seals.pending} yolda` : ""}`, `● ${seals.memoCount} sealed${seals.pending ? ` · ${seals.pending} on the way` : ""}`))
+      : h("span", { class: "offline" }, L("bağlantı koptu…", "connection lost…")));
 }
 
 const nameOf = (id) => (s.players.find((p) => p.id === id) || {}).name || "?";
 const alive = () => s.players.filter((p) => p.alive);
-const initial = (n) => n.slice(0, 1).toLocaleUpperCase("tr");
+const initial = (n) => n.slice(0, 1).toLocaleUpperCase(LOC);
+const YOU = () => L(" (sen)", " (you)");
 
 function viewEntry() {
   const create = () => {
     const name = document.getElementById("ad").value.trim();
     if (!name) {
       document.getElementById("ad").focus();
-      return toast("Önce adını yaz.");
+      return toast(NAME_FIRST());
     }
     store.set("zkoy.name", name);
     draft.name = name;
@@ -407,11 +490,11 @@ function viewEntry() {
     const code = document.getElementById("kod").value.trim().toUpperCase();
     if (!name) {
       document.getElementById("ad").focus();
-      return toast("Önce adını yaz.");
+      return toast(NAME_FIRST());
     }
     if (code.length < 4) {
       document.getElementById("kod").focus();
-      return toast("Oda kodunu yaz.");
+      return toast(L("Oda kodunu yaz.", "Write the room code."));
     }
     store.set("zkoy.name", name);
     send({ t: "join", code, name, n: nonce() });
@@ -420,24 +503,24 @@ function viewEntry() {
   return {
     theme: "night entry",
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow mono" }, "Vampir Köylü"), h("span", { class: "muted mono" }, "zkoy.fun")),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow mono" }, L("Vampir Köylü", "Vampire Village")), h("span", { style: "display:flex;gap:10px;align-items:center" }, h("span", { class: "muted mono" }, "zkoy.fun"), langButton())),
       h("div", { class: "entry-hero" },
         h("div", { class: "lantern", "aria-hidden": "true" }),
         h("h1", { class: "hero" }, "ZKöy"),
-        h("p", {}, "Köy uyuyor. Aranızda vampir var. Her gece, her oy mühürleniyor.")),
+        h("p", {}, L("Köy uyuyor. Aranızda vampir var. Her gece, her oy mühürleniyor.", "The village sleeps. A vampire is among you. Every night and every vote is sealed."))),
       h("div", { class: "stack" },
-        h("label", { class: "lbl", for: "ad" }, "ADIN"),
-        h("input", { id: "ad", maxlength: "16", autocomplete: "nickname", placeholder: "Masada seni ne diye çağırıyorlar?", value: draft.name, oninput: (e) => (draft.name = e.target.value) }),
+        h("label", { class: "lbl", for: "ad" }, L("ADIN", "YOUR NAME")),
+        h("input", { id: "ad", maxlength: "16", autocomplete: "nickname", placeholder: L("Masada seni ne diye çağırıyorlar?", "What does the table call you?"), value: draft.name, oninput: (e) => (draft.name = e.target.value) }),
         joining
-          ? h("button", { class: "btn", onclick: join }, `${draft.code} odasına otur`)
-          : h("button", { class: "btn", onclick: create }, "Oda kur"),
+          ? h("button", { class: "btn", onclick: join }, L(`${draft.code} odasına otur`, `Sit at ${draft.code}`))
+          : h("button", { class: "btn", onclick: create }, L("Oda kur", "Create a room")),
         h("div", { class: "duo" },
-          h("label", { class: "sr", for: "kod" }, "Oda kodu"),
-          h("input", { id: "kod", class: "code", maxlength: "8", placeholder: "ODA KODU", value: draft.code, oninput: (e) => (draft.code = e.target.value.toUpperCase()) }),
-          joining ? h("button", { class: "ghost gold", onclick: () => { draft.code = ""; history.replaceState(null, "", "/"); render(); } }, "Oda kur") : h("button", { class: "ghost gold", onclick: join }, "Gir")),
+          h("label", { class: "sr", for: "kod" }, L("Oda kodu", "Room code")),
+          h("input", { id: "kod", class: "code", maxlength: "8", placeholder: L("ODA KODU", "ROOM CODE"), value: draft.code, oninput: (e) => (draft.code = e.target.value.toUpperCase()) }),
+          joining ? h("button", { class: "ghost gold", onclick: () => { draft.code = ""; history.replaceState(null, "", "/"); render(); } }, L("Oda kur", "New room")) : h("button", { class: "ghost gold", onclick: join }, L("Gir", "Join"))),
         h("div", { class: "bar", style: "justify-content:center;gap:16px" },
-          h("span", { class: "muted" }, "QR'ı okuttuysan kod hazır gelir."),
-          h("button", { class: "link", onclick: () => { rulesStep = 0; render(); } }, "Nasıl oynanır?")))),
+          h("span", { class: "muted" }, L("QR'ı okuttuysan kod hazır gelir.", "Scanned the QR? The code is already in.")),
+          h("button", { class: "link", onclick: () => { rulesStep = 0; render(); } }, L("Nasıl oynanır?", "How to play?"))))),
   };
 }
 
@@ -457,6 +540,9 @@ function composition(n, rules) {
   return { vampir, doktor: 1, gozcu, deli, koylu: Math.max(0, n - vampir - 1 - gozcu - deli) };
 }
 
+/** "3 vampir" / "3 vampires". */
+const many = (n, tr, en) => (EN ? `${n} ${en}${n === 1 ? "" : "s"}` : `${n} ${tr}`);
+
 function viewLobby() {
   const link = `${location.origin}/j/${s.code}`;
   const n = s.players.length;
@@ -465,33 +551,35 @@ function viewLobby() {
   return {
     theme: "night",
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, "Oda"), h("button", { class: "ghost small", onclick: () => { rulesStep = 0; render(); } }, "Nasıl oynanır?")),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, L("Oda", "Room")), h("span", { style: "display:flex;gap:10px;align-items:center" }, h("button", { class: "ghost small", onclick: () => { rulesStep = 0; render(); } }, L("Nasıl oynanır?", "How to play?")), langButton())),
       h("div", { class: "lobby-head" },
-        h("div", { class: "qr sm", html: qrSvg(link), role: "img", "aria-label": `Katılım QR kodu: ${link}` }),
+        h("div", { class: "qr sm", html: qrSvg(link), role: "img", "aria-label": L(`Katılım QR kodu: ${link}`, `Join QR code: ${link}`) }),
         h("div", { class: "stack", style: "gap:6px" },
           h("div", { class: "room-code" }, s.code),
-          h("span", { class: "muted" }, "Okut ya da kodu yaz, masaya otur."),
-          h("button", { class: "link", style: "align-self:flex-start", onclick: () => copyLink(link) }, "Linki kopyala"))),
+          h("span", { class: "muted" }, L("Okut ya da kodu yaz, masaya otur.", "Scan it or type the code to take a seat.")),
+          h("button", { class: "link", style: "align-self:flex-start", onclick: () => copyLink(link) }, L("Linki kopyala", "Copy the link")))),
       h("div", { class: "stack", style: "gap:8px" },
-        h("span", { class: "eyebrow" }, n < 7 ? "7 kişi olunca masada" : "Bu masada"),
+        h("span", { class: "eyebrow" }, n < 7 ? L("7 kişi olunca masada", "With 7 players the table has") : L("Bu masada", "At this table")),
         h("div", { class: "chips" },
-          chip("vampir", `${c.vampir} vampir`), chip("doktor", "1 doktor"),
-          c.gozcu ? chip("gozcu", "1 gözcü") : chip("off", "gözcü yok"),
-          c.deli ? chip("deli", "1 deli") : null,
-          chip("koylu", `${c.koylu} köylü`),
-          s.test ? chip("off", "test masası · sayaçlara girmez") : null),
-        h("span", { class: "muted", style: "font-size:13px" }, `Masa büyüdükçe dağılım kendiliğinden değişir. Sanık kendi davasında ${s.rules.accusedVotes ? "oy kullanır" : "oy kullanmaz"}.`)),
-      h("div", { class: "bar" }, h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:26px" }, "Masa"), h("span", { class: "mono muted" }, `${n} / 15 · en az 7`)),
+          chip("vampir", many(c.vampir, "vampir", "vampire")), chip("doktor", L("1 doktor", "1 doctor")),
+          c.gozcu ? chip("gozcu", L("1 gözcü", "1 seer")) : chip("off", L("gözcü yok", "no seer")),
+          c.deli ? chip("deli", L("1 deli", "1 fool")) : null,
+          chip("koylu", many(c.koylu, "köylü", "villager")),
+          s.test ? chip("off", L("test masası · sayaçlara girmez", "test table · not counted")) : null),
+        h("span", { class: "muted", style: "font-size:13px" }, L(
+          `Masa büyüdükçe dağılım kendiliğinden değişir. Sanık kendi davasında ${s.rules.accusedVotes ? "oy kullanır" : "oy kullanmaz"}.`,
+          `The mix changes on its own as the table grows. The accused ${s.rules.accusedVotes ? "votes" : "does not vote"} in their own trial.`))),
+      h("div", { class: "bar" }, h("span", { style: "font-family:var(--d-font);font-weight:800;font-size:26px" }, L("Masa", "Table")), h("span", { class: "mono muted" }, L(`${n} / 15 · en az 7`, `${n} / 15 · at least 7`))),
       h("div", { class: "seats" }, s.players.map((p) =>
         h("div", { class: `seat${p.isHost ? " host" : ""}` },
           h("span", { class: `av${p.isHost ? " gold" : ""}` }, initial(p.name)),
-          h("span", { style: p.id === m.pid ? "font-weight:600" : "" }, p.name + (p.id === m.pid ? " (sen)" : "")),
-          p.isHost ? h("span", { class: "tag" }, "kurucu")
-            : m.can.includes("kick") && h("button", { class: "x", "aria-label": `${p.name} masadan çıkar`, onclick: () => cmd("kick", { x: p.id }) }, "✕")))),
+          h("span", { style: p.id === m.pid ? "font-weight:600" : "" }, p.name + (p.id === m.pid ? YOU() : "")),
+          p.isHost ? h("span", { class: "tag" }, L("kurucu", "host"))
+            : m.can.includes("kick") && h("button", { class: "x", "aria-label": L(`${p.name} masadan çıkar`, `Remove ${p.name}`), onclick: () => cmd("kick", { x: p.id }) }, "✕")))),
       h("div", { class: "stack push" },
         m.can.includes("start")
-          ? h("button", { class: "btn", disabled: n < 7, onclick: () => cmd("start") }, n < 7 ? `${7 - n} kişi daha lazım` : "Köyü uyut, başlat")
-          : h("p", { class: "muted" }, `${nameOf(s.hostPid)} başlatınca rol kartın gelecek. Telefonunu kimseye gösterme.`))),
+          ? h("button", { class: "btn", disabled: n < 7, onclick: () => cmd("start") }, n < 7 ? L(`${7 - n} kişi daha lazım`, `${7 - n} more needed`) : L("Köyü uyut, başlat", "Put the village to sleep, start"))
+          : h("p", { class: "muted" }, L(`${nameOf(s.hostPid)} başlatınca rol kartın gelecek. Telefonunu kimseye gösterme.`, `Your role card arrives when ${nameOf(s.hostPid)} starts. Show your phone to nobody.`)))),
   };
 }
 
@@ -501,8 +589,8 @@ function copyText(text, done) {
 }
 
 function copyLink(link) {
-  const ok = () => toast("Link kopyalandı.");
-  if (navigator.share) navigator.share({ title: "ZKöy", text: "Masaya otur:", url: link }).catch(() => {});
+  const ok = () => toast(L("Link kopyalandı.", "Link copied."));
+  if (navigator.share) navigator.share({ title: "ZKöy", text: L("Masaya otur:", "Take a seat:"), url: link }).catch(() => {});
   else if (navigator.clipboard) navigator.clipboard.writeText(link).then(ok, () => toast(link));
   else toast(link);
 }
@@ -512,21 +600,21 @@ function viewCard() {
   return {
     theme: "night",
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, "Rolün · yalnız sen görüyorsun"), h("span", { class: "seal" }, "● mühürlendi")),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, L("Rolün · yalnız sen görüyorsun", "Your role · only you can see it")), h("span", { class: "seal" }, L("● mühürlendi", "● sealed"))),
       h("div", { class: `card ${m.role}` },
         h("span", { class: "mono", style: "font-size:12px;letter-spacing:0.1em;opacity:0.8" }, r.tag),
         h("div", { class: "stack" }, h("h2", {}, r.name), h("p", {}, r.text)),
         m.team.length
-          ? h("div", { class: "foot" }, h("span", { style: "font-size:13px;opacity:0.8" }, "Takımın"), h("span", { style: "font-family:var(--d-font);font-weight:600;font-size:24px" }, m.team.map(nameOf).join(", ")))
-          : h("div", { class: "foot" }, h("span", { style: "font-size:13px;opacity:0.8" }, "Kimseye gösterme."))),
+          ? h("div", { class: "foot" }, h("span", { style: "font-size:13px;opacity:0.8" }, L("Takımın", "Your team")), h("span", { style: "font-family:var(--d-font);font-weight:600;font-size:24px" }, m.team.map(nameOf).join(", ")))
+          : h("div", { class: "foot" }, h("span", { style: "font-size:13px;opacity:0.8" }, L("Kimseye gösterme.", "Show nobody.")))),
       h("div", { class: "stack", style: "gap:10px" },
-        h("span", { class: "eyebrow" }, "Senin gecen böyle geçer"),
+        h("span", { class: "eyebrow" }, L("Senin gecen böyle geçer", "This is how your night goes")),
         r.steps.map((t, i) => h("div", { class: "facts one" }, h("div", {}, h("span", { class: "mono", style: "color:var(--wax-soft)" }, String(i + 1)), h("span", {}, t))))),
-      h("button", { class: "ghost", onclick: () => { cardOpen = false; render(); } }, s.phase === "ELECTION" && !ebeSeen.has(`${s.code}:sec`) ? "Anladım, devam" : "Kartı kapat")),
+      h("button", { class: "ghost", onclick: () => { cardOpen = false; render(); } }, s.phase === "ELECTION" && !ebeSeen.has(`${s.code}:sec`) ? L("Anladım, devam", "Got it, continue") : L("Kartı kapat", "Close the card"))),
   };
 }
 
-const cardButton = () => h("button", { class: "ghost", style: "min-height:40px;font-size:14px", onclick: () => { cardOpen = true; render(); } }, "Kartım");
+const cardButton = () => h("button", { class: "ghost", style: "min-height:40px;font-size:14px", onclick: () => { cardOpen = true; render(); } }, L("Kartım", "My card"));
 
 function viewElection() {
   const total = alive().length;
@@ -535,9 +623,10 @@ function viewElection() {
   return {
     theme: "night",
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, "Seçim · oyun başlamadan"), cardButton()),
-      h("div", { class: "stack" }, h("h1", {}, "Köyün Muhtarı kim olsun?"), h("p", {}, `Muhtar'ın oyu ${s.muhtarWeight} sayılır, günü o yönetir. Vampir de seçilebilir.`)),
-      s.election.candidates.length === 0 && h("p", { class: "muted" }, "Henüz aday yok. Aday olan olmazsa kura çekilir."),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, L("Seçim · oyun başlamadan", "Election · before the game")), cardButton()),
+      h("div", { class: "stack" }, h("h1", {}, L("Köyün Muhtarı kim olsun?", "Who should be the village's Muhtar?")),
+        h("p", {}, L(`Muhtar'ın oyu ${s.muhtarWeight} sayılır, günü o yönetir. Vampir de seçilebilir.`, `The Muhtar's vote counts ${s.muhtarWeight} times, and they run the day. A vampire can be elected too.`))),
+      s.election.candidates.length === 0 && h("p", { class: "muted" }, L("Henüz aday yok. Aday olan olmazsa kura çekilir.", "No candidates yet. If nobody stands, lots are drawn.")),
       h("div", { class: "stack" }, s.election.candidates.map((c) => {
         const count = s.election.tally[c] || 0;
         return h("button", { class: `cand${mine === c ? " on" : ""}`, disabled: !m.can.includes("mvote"), onclick: () => act("mvote", { x: c }) },
@@ -545,10 +634,12 @@ function viewElection() {
           h("span", { style: "flex-grow:1" }, h("span", { style: "font-weight:600;font-size:18px" }, nameOf(c)), h("span", { class: "meter" }, h("span", { style: `width:${Math.round((count / total) * 100)}%` }))),
           h("span", { class: "n" }, count));
       })),
-      mine && h("p", { class: "muted" }, `Senin oyun: ${nameOf(mine)}${missing.length ? ` · oy vermeyen: ${missing.join(", ")}` : ""}`),
+      mine && h("p", { class: "muted" }, L(
+        `Senin oyun: ${nameOf(mine)}${missing.length ? ` · oy vermeyen: ${missing.join(", ")}` : ""}`,
+        `Your vote: ${nameOf(mine)}${missing.length ? ` · not voted yet: ${missing.join(", ")}` : ""}`)),
       h("div", { class: "stack push" },
-        m.can.includes("nominate") && h("button", { class: "ghost gold", onclick: () => act("nominate") }, "Ben de adayım"),
-        m.can.includes("closeElection") && missing.length > 0 && h("button", { class: "ghost", onclick: () => cmd("closeElection") }, "Seçimi bitir (kurucu)"))),
+        m.can.includes("nominate") && h("button", { class: "ghost gold", onclick: () => act("nominate") }, L("Ben de adayım", "I'll stand")),
+        m.can.includes("closeElection") && missing.length > 0 && h("button", { class: "ghost", onclick: () => cmd("closeElection") }, L("Seçimi bitir (kurucu)", "End the election (host)")))),
   };
 }
 
@@ -559,29 +650,35 @@ function viewNight() {
   if (!acting) {
     body = h("div", { class: "entry-hero" },
       h("div", { class: "lantern", "aria-hidden": "true" }),
-      h("h1", {}, m.alive ? "Köy uyuyor." : "Hayaletler izliyor."),
-      h("p", {}, m.alive ? "Gözlerini kapat. Telefonunu masaya bırak; sabah seni uyandırırız." : "Gecenin hamlelerini göremezsin; sabahı bekle."));
+      h("h1", {}, m.alive ? L("Köy uyuyor.", "The village sleeps.") : L("Hayaletler izliyor.", "The ghosts are watching.")),
+      h("p", {}, m.alive
+        ? L("Gözlerini kapat. Telefonunu masaya bırak; sabah seni uyandırırız.", "Close your eyes. Leave your phone on the table; we will wake you in the morning.")
+        : L("Gecenin hamlelerini göremezsin; sabahı bekle.", "You cannot see the night's moves; wait for the morning.")));
   } else {
     const current = role === "vampir" ? m.night.targets[m.pid] : role === "doktor" ? m.night.save : m.night.query;
-    const title = { vampir: "Kimi alıyoruz?", doktor: "Bu gece kimi koruyorsun?", gozcu: "Kime bakıyorsun?" }[role];
+    const title = EN
+      ? { vampir: "Who do we take?", doktor: "Who are you protecting tonight?", gozcu: "Who are you checking?" }[role]
+      : { vampir: "Kimi alıyoruz?", doktor: "Bu gece kimi koruyorsun?", gozcu: "Kime bakıyorsun?" }[role];
     const pool = alive().filter((p) => (role === "doktor" ? true : p.id !== m.pid) && !(role === "vampir" && m.team.includes(p.id)));
-    const teamPicks = role === "vampir" ? m.team.filter((id) => m.night.targets[id]).map((id) => `${nameOf(id)}'nın seçimi: ${nameOf(m.night.targets[id])}`) : [];
+    const teamPicks = role === "vampir"
+      ? m.team.filter((id) => m.night.targets[id]).map((id) => L(`${nameOf(id)}'nın seçimi: ${nameOf(m.night.targets[id])}`, `${nameOf(id)}'s pick: ${nameOf(m.night.targets[id])}`))
+      : [];
     const last = role === "gozcu" && m.gozcuLog.length ? m.gozcuLog[m.gozcuLog.length - 1] : null;
     body = h("div", { class: "stack" },
       h("h1", { style: role === "vampir" ? "color:#F2D9D5" : "" }, title),
-      teamPicks.length ? h("p", {}, teamPicks.join(" · ") + ". Aynı kişiyi seçin.") : null,
-      last && h("p", {}, `Dünkü sorgun: ${nameOf(last.target)} ${last.vamp ? "VAMPİR" : "vampir değil"}.`),
+      teamPicks.length ? h("p", {}, teamPicks.join(" · ") + L(". Aynı kişiyi seçin.", ". Pick the same person.")) : null,
+      last && h("p", {}, L(`Dünkü sorgun: ${nameOf(last.target)} ${last.vamp ? "VAMPİR" : "vampir değil"}.`, `Last night's check: ${nameOf(last.target)} ${last.vamp ? "IS A VAMPIRE" : "is not a vampire"}.`)),
       h("div", { class: "picks night-pick" }, pool.map((p) =>
-        h("button", { class: `pick${current === p.id ? " on" : ""}`, onclick: () => act("night", { x: p.id }) }, p.name + (p.id === m.pid ? " (sen)" : "") + (current === p.id ? " ✓" : ""))),
-        role === "vampir" && m.team.map((id) => h("div", { class: "pick note", style: "display:flex;align-items:center;justify-content:center" }, `${nameOf(id)} · takım`))));
+        h("button", { class: `pick${current === p.id ? " on" : ""}`, onclick: () => act("night", { x: p.id }) }, p.name + (p.id === m.pid ? YOU() : "") + (current === p.id ? " ✓" : ""))),
+        role === "vampir" && m.team.map((id) => h("div", { class: "pick note", style: "display:flex;align-items:center;justify-content:center" }, `${nameOf(id)} · ${L("takım", "team")}`))));
   }
   return {
     theme: "night",
     el: h("section", { class: "screen", style: acting && role === "vampir" ? "background:radial-gradient(80% 40% at 50% 100%, #3B1412 0%, transparent 70%)" : "" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${s.round}. gece`), h("span", { style: "display:flex;gap:10px;align-items:center" }, bar("").lastChild, cardButton())),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, nightN(s.round)), h("span", { style: "display:flex;gap:10px;align-items:center" }, bar("").lastChild, cardButton())),
       body,
       h("div", { class: "stack push" },
-        m.can.includes("closeNight") && h("button", { class: "ghost", onclick: () => cmd("closeNight") }, "Geceyi bitir (kurucu)"),
+        m.can.includes("closeNight") && h("button", { class: "ghost", onclick: () => cmd("closeNight") }, L("Geceyi bitir (kurucu)", "End the night (host)")),
         m.can.includes("will") && willBox())),
   };
 }
@@ -592,20 +689,22 @@ let willOpen = false;
 function willBox() {
   const save = () => {
     const txt = document.getElementById("will").value.trim();
-    if (!txt) return toast("Önce vasiyetini yaz.");
-    if (!ws || ws.readyState !== 1) return toast("Bağlantı yok, yeniden bağlanıyor…");
+    if (!txt) return toast(L("Önce vasiyetini yaz.", "Write your last words first."));
+    if (!ws || ws.readyState !== 1) return toast(NO_LINK());
     act("will", { txt });
     willOpen = false;
-    toast("Vasiyetin kaydedildi; turla birlikte mühürlenir.");
+    toast(L("Vasiyetin kaydedildi; birazdan mühürlenir.", "Your last words are saved and will be sealed shortly."));
     render();
   };
   if (draft.will === null) draft.will = m.will || "";
   return h("details", { open: willOpen, ontoggle: (e) => (willOpen = e.target.open) },
-    h("summary", { class: "muted", style: "cursor:pointer;min-height:44px;display:flex;align-items:center" }, m.will ? "Vasiyetin yazılı · düzenle" : "Vasiyet bırak (ölünce okunur)"),
+    h("summary", { class: "muted", style: "cursor:pointer;min-height:44px;display:flex;align-items:center" }, m.will
+      ? L("Vasiyetin yazılı · düzenle", "Your last words are written · edit")
+      : L("Vasiyet bırak (ölünce okunur)", "Leave last words (read out when you die)")),
     h("div", { class: "stack", style: "margin-top:8px" },
-      h("label", { class: "sr", for: "will" }, "Vasiyet"),
-      h("textarea", { id: "will", maxlength: "200", placeholder: "Ölürsem köy şunu bilsin…", oninput: (e) => (draft.will = e.target.value) }, draft.will),
-      h("button", { class: "ghost", onclick: save }, "Kaydet")));
+      h("label", { class: "sr", for: "will" }, L("Vasiyet", "Last words")),
+      h("textarea", { id: "will", maxlength: "200", placeholder: L("Ölürsem köy şunu bilsin…", "If I die, the village should know…"), oninput: (e) => (draft.will = e.target.value) }, draft.will),
+      h("button", { class: "ghost", onclick: save }, L("Kaydet", "Save"))));
 }
 
 function viewDawn() {
@@ -615,23 +714,27 @@ function viewDawn() {
   return {
     theme: "day dawn",
     el: h("section", { class: "screen" },
-      bar(`Şafak · ${s.round}. gün`),
+      bar(L(`Şafak · ${s.round}. gün`, `Dawn · day ${s.round}`)),
       h("div", { class: "dawn-hero" },
-        h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, "SABAH OLDU"),
-        dead ? h("h1", {}, `${dead.name} ölü bulundu.`) : h("h1", {}, s.lastNight && s.lastNight.saved ? "Doktor yetişti." : "Sessiz bir gece."),
-        dead ? h("p", { style: "font-size:20px" }, "O bir ", h("b", {}, WAS[dead.role] || "?"), ".") : h("p", {}, ann ? ann.text : "Kimse ölmedi."),
-        ann && ann.will && h("div", { class: "will" }, h("span", { class: "eyebrow", style: "font-size:12px" }, "Vasiyeti"), h("q", {}, ann.will)),
+        h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, L("SABAH OLDU", "MORNING")),
+        dead
+          ? h("h1", {}, L(`${dead.name} ölü bulundu.`, `${dead.name} was found dead.`))
+          : h("h1", {}, s.lastNight && s.lastNight.saved ? L("Doktor yetişti.", "The doctor got there in time.") : L("Sessiz bir gece.", "A quiet night.")),
+        dead ? wasLine(dead.role) : h("p", {}, ann ? annText(ann) : L("Kimse ölmedi.", "Nobody died.")),
+        ann && ann.will && h("div", { class: "will" }, h("span", { class: "eyebrow", style: "font-size:12px" }, L("Vasiyeti", "Last words")), h("q", {}, ann.will)),
         m.heirRight && heirPicker()),
       h("div", { class: "stack" },
         m.can.includes("startDay")
-          ? h("button", { class: "btn", onclick: () => cmd("startDay") }, "Güne geç")
-          : h("p", { class: "muted" }, s.muhtar ? `Muhtar ${nameOf(s.muhtar)} hazır olunca güne geçer.` : "Kurucu hazır olunca güne geçer."))),
+          ? h("button", { class: "btn", onclick: () => cmd("startDay") }, L("Güne geç", "Start the day"))
+          : h("p", { class: "muted" }, s.muhtar
+            ? L(`Muhtar ${nameOf(s.muhtar)} hazır olunca güne geçer.`, `Muhtar ${nameOf(s.muhtar)} starts the day when ready.`)
+            : L("Kurucu hazır olunca güne geçer.", "The host starts the day when ready.")))),
   };
 }
 
 function heirPicker() {
   return h("div", { class: "stack" },
-    h("p", { style: "font-weight:600" }, "Muhtar sendin. Makamı kime bırakıyorsun?"),
+    h("p", { style: "font-weight:600" }, L("Muhtar sendin. Makamı kime bırakıyorsun?", "You were the Muhtar. Who gets the office?")),
     h("div", { class: "picks" }, alive().map((p) => h("button", { class: "pick", onclick: () => act("heir", { x: p.id }) }, p.name))));
 }
 
@@ -644,18 +747,18 @@ function viewDay() {
   return {
     theme: "day",
     el: h("section", { class: "screen" },
-      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${s.round}. gün · meydan`), h("span", { style: "display:flex;gap:10px;align-items:center" }, bar("").lastChild, cardButton())),
-      h("h1", {}, m.alive ? "Kimden şüpheleniyorsun?" : "Hayaletsin. Kim asılacak?"),
+      h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${dayN(s.round)} · ${L("meydan", "square")}`), h("span", { style: "display:flex;gap:10px;align-items:center" }, bar("").lastChild, cardButton())),
+      h("h1", {}, m.alive ? L("Kimden şüpheleniyorsun?", "Who do you suspect?") : L("Hayaletsin. Kim asılacak?", "You are a ghost. Who will hang?")),
       pending.length > 0 && h("div", { class: "stack" }, pending.map(([x, list]) => {
         const got = (d.support || {})[x] || list.length;
         const imIn = list.includes(m.pid);
         return h("div", { class: "callout" },
           h("span", { style: "flex-grow:1;display:flex;flex-direction:column;gap:6px" },
-            h("small", {}, `SUÇLAMA · ${got}/${d.need} DESTEK`),
+            h("small", {}, L(`SUÇLAMA · ${got}/${d.need} DESTEK`, `ACCUSATION · ${got}/${d.need} SUPPORT`)),
             h("span", { style: "font-size:17px" }, h("b", { style: "color:#F4B728" }, nameOf(x)), h("span", { style: "color:#C9C4DB" }, ` · ${list.map(nameOf).join(", ")}`)),
             h("span", { class: "meter-sm" }, h("span", { style: `width:${Math.min(100, Math.round((got / d.need) * 100))}%` }))),
-          imIn ? h("span", { class: "mine" }, "Destekliyorsun")
-            : m.can.includes("second") && x !== m.pid && h("button", { onclick: () => act("second", { x }) }, "Destekle"));
+          imIn ? h("span", { class: "mine" }, L("Destekliyorsun", "You back this"))
+            : m.can.includes("second") && x !== m.pid && h("button", { onclick: () => act("second", { x }) }, L("Destekle", "Back")));
       })),
       h("div", { class: "rows" }, s.players.map((p) => {
         const accused = !!(d.backers || {})[p.id];
@@ -665,18 +768,18 @@ function viewDay() {
           h("span", { class: `av${p.isMuhtar ? " gold" : p.alive ? "" : " dead"}` }, initial(p.name)),
           h("span", { class: "who", style: p.id === m.pid ? "font-weight:600" : "" }, p.name),
           p.isMuhtar && h("span", { class: "badge" }, `Muhtar ×${s.muhtarWeight}`),
-          accused && h("span", { class: "note" }, "suçlandı"),
-          d.triedToday.includes(p.id) && h("span", { class: "note" }, "beraat"),
-          !p.alive && h("span", { class: "note", style: "color:var(--muted)" }, `${(ROLE[p.role] || {}).name || ""} · öldü`),
-          canAccuse && h("button", { onclick: () => act("accuse", { x: p.id }) }, "Suçla"),
-          canProphecy && h("button", { onclick: () => act("gvote", { x: p.id }) }, m.myProphecy === p.id ? "Kehanetim ✓" : "Kehanet"));
+          accused && h("span", { class: "note" }, L("suçlandı", "accused")),
+          d.triedToday.includes(p.id) && h("span", { class: "note" }, L("beraat", "acquitted")),
+          !p.alive && h("span", { class: "note", style: "color:var(--muted)" }, `${(ROLE[p.role] || {}).name || ""} · ${L("öldü", "dead")}`),
+          canAccuse && h("button", { onclick: () => act("accuse", { x: p.id }) }, L("Suçla", "Accuse")),
+          canProphecy && h("button", { onclick: () => act("gvote", { x: p.id }) }, m.myProphecy === p.id ? L("Kehanetim ✓", "My prophecy ✓") : L("Kehanet", "Prophecy")));
       })),
       h("p", { class: "muted" }, mine
-        ? `Desteğin ${nameOf(mine[0])} üzerinde. Başkasını suçlarsan ya da desteklersen desteğin oraya geçer.`
-        : `Birini suçla. Destek ${d.need}'e ulaşınca dava açılır; Muhtar'ın desteği ${s.muhtarWeight} sayılır.`),
+        ? L(`Desteğin ${nameOf(mine[0])} üzerinde. Başkasını suçlarsan ya da desteklersen desteğin oraya geçer.`, `You back the accusation against ${nameOf(mine[0])}. Accuse or back someone else and your support moves there.`)
+        : L(`Birini suçla. Destek ${d.need}'e ulaşınca dava açılır; Muhtar'ın desteği ${s.muhtarWeight} sayılır.`, `Accuse someone. A trial opens at ${d.need} support; the Muhtar's support counts ${s.muhtarWeight} times.`)),
       h("div", { class: "stack push" },
         m.can.includes("will") && willBox(),
-        m.can.includes("closeDay") && h("button", { class: "btn", onclick: () => cmd("closeDay") }, "Günü kapat, geceye geç"))),
+        m.can.includes("closeDay") && h("button", { class: "btn", onclick: () => cmd("closeDay") }, L("Günü kapat, geceye geç", "Close the day, bring the night")))),
   };
 }
 
@@ -691,27 +794,37 @@ function viewTrial() {
   const mine = t.verdicts[m.pid];
   const isAccused = m.pid === t.accused;
   const supporters = (t.backers || [t.seconder]).filter((b) => b !== t.accuser).map(nameOf).join(", ");
-  const header = h("span", { class: "muted" }, `${nameOf(t.accuser)} suçladı · destek: ${supporters}`);
+  // Muhtar suçlayınca desteği iki sayılır; başka destekçi olmayabilir.
+  const header = h("span", { class: "muted" }, supporters
+    ? L(`${nameOf(t.accuser)} suçladı · destek: ${supporters}`, `${nameOf(t.accuser)} accused · backed by ${supporters}`)
+    : L(`${nameOf(t.accuser)} suçladı`, `${nameOf(t.accuser)} accused`));
   let main;
   if (s.day.stage === "trial") {
     main = h("div", { class: "dawn-hero" },
       header,
-      h("h1", {}, isAccused ? "Savunma sırası sende." : `${nameOf(t.accused)} savunuyor.`),
-      h("p", {}, isAccused ? "Masaya anlat. Bitince düğmeye bas, oylama açılsın." : "Dinle. Sanık bitirince ya da Muhtar derse oylama açılır."),
-      m.can.includes("done") && h("button", { class: "btn", onclick: () => act("done") }, "Savunmam bitti"),
-      m.can.includes("toVerdict") && !isAccused && h("button", { class: "ghost", onclick: () => cmd("toVerdict") }, "Oylamaya geç"));
+      h("h1", {}, isAccused ? L("Savunma sırası sende.", "Your turn to defend.") : L(`${nameOf(t.accused)} savunuyor.`, `${nameOf(t.accused)} is defending.`)),
+      h("p", {}, isAccused
+        ? L("Masaya anlat. Bitince düğmeye bas, oylama açılsın.", "Tell the table. Press the button when you are done, and the vote opens.")
+        : L("Dinle. Sanık bitirince ya da Muhtar derse oylama açılır.", "Listen. The vote opens when the accused is done or the Muhtar says so.")),
+      m.can.includes("done") && h("button", { class: "btn", onclick: () => act("done") }, L("Savunmam bitti", "My defence is over")),
+      m.can.includes("toVerdict") && !isAccused && h("button", { class: "ghost", onclick: () => cmd("toVerdict") }, L("Oylamaya geç", "Open the vote")));
   } else {
     main = h("div", { class: "stack", style: "flex-grow:1" },
       header,
-      h("h1", { style: "font-size:clamp(48px,15vw,64px)" }, `${nameOf(t.accused)} asılsın mı?`),
+      h("h1", { style: "font-size:clamp(48px,15vw,64px)" }, L(`${nameOf(t.accused)} asılsın mı?`, `Hang ${nameOf(t.accused)}?`)),
       h("div", { class: "stack", style: "gap:8px" },
-        h("div", { class: "tally" }, h("span", { style: "color:var(--wax)" }, `assın ${g}`), h("span", { class: "muted" }, `${need} olursa asılır · toplam ${total}`), h("span", {}, `asmasın ${ng}`)),
+        h("div", { class: "tally" },
+          h("span", { style: "color:var(--wax)" }, L(`assın ${g}`, `hang ${g}`)),
+          h("span", { class: "muted" }, L(`${need} olursa asılır · toplam ${total}`, `${need} hangs · total ${total}`)),
+          h("span", {}, L(`asmasın ${ng}`, `spare ${ng}`))),
         h("div", { class: "bar-v" }, h("span", { class: "g", style: `width:${(g / total) * 100}%` }), h("span", { class: "n", style: `width:${(ng / total) * 100}%` }), h("span", { class: "mid" }))),
       m.can.includes("verdict")
         ? h("div", { class: "stack", style: "flex-grow:1;justify-content:center;gap:12px" },
-          h("button", { class: `verdict yes${mine === true ? " on" : ""}`, onclick: () => act("verdict", { y: true }) }, "ASSIN"),
-          h("button", { class: `verdict no${mine === false ? " on" : ""}`, onclick: () => act("verdict", { y: false }) }, "ASMASIN"))
-        : h("p", { style: "flex-grow:1" }, isAccused ? "Kendi davanda oy kullanmazsın. Köy karar veriyor." : "Oy hakkın yok; izliyorsun."),
+          h("button", { class: `verdict yes${mine === true ? " on" : ""}`, onclick: () => act("verdict", { y: true }) }, L("ASSIN", "HANG")),
+          h("button", { class: `verdict no${mine === false ? " on" : ""}`, onclick: () => act("verdict", { y: false }) }, L("ASMASIN", "SPARE")))
+        : h("p", { style: "flex-grow:1" }, isAccused
+          ? L("Kendi davanda oy kullanmazsın. Köy karar veriyor.", "You do not vote in your own trial. The village decides.")
+          : L("Oy hakkın yok; izliyorsun.", "You have no vote; you are watching.")),
       h("div", { class: "chips" }, voters.map((p) => {
         const v = t.verdicts[p.id];
         const mark = v === undefined ? " …" : v ? (w[p.id] > 1 ? " ✓✓" : " ✓") : " ✗";
@@ -719,13 +832,14 @@ function viewTrial() {
       })),
       // Biri oy vermeden masadan kalktıysa oyun burada kalmasın (bir dakika sonra açılır).
       m.can.includes("closeVerdict") && h("div", { class: "stack", style: "gap:6px" },
-        h("button", { class: "ghost", onclick: () => cmd("closeVerdict") }, "Oylamayı kapat"),
-        h("span", { class: "muted", style: "font-size:13px" },
-          `Oy vermeyen: ${voters.filter((p) => t.verdicts[p.id] === undefined).map((p) => p.name).join(", ")}. Verilmeyen oy “asmasın” sayılır.`)));
+        h("button", { class: "ghost", onclick: () => cmd("closeVerdict") }, L("Oylamayı kapat", "Close the vote")),
+        h("span", { class: "muted", style: "font-size:13px" }, L(
+          `Oy vermeyen: ${voters.filter((p) => t.verdicts[p.id] === undefined).map((p) => p.name).join(", ")}. Verilmeyen oy “asmasın” sayılır.`,
+          `Not voted: ${voters.filter((p) => t.verdicts[p.id] === undefined).map((p) => p.name).join(", ")}. A missing vote counts as “spare”.`))));
   }
   return {
     theme: "day",
-    el: h("section", { class: "screen" }, h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${s.round}. gün · dava`), bar("").lastChild), main),
+    el: h("section", { class: "screen" }, h("div", { class: "bar" }, h("span", { class: "eyebrow" }, `${dayN(s.round)} · ${L("dava", "trial")}`), bar("").lastChild), main),
   };
 }
 
@@ -736,42 +850,45 @@ function viewExecution() {
   return {
     theme: "day",
     el: h("section", { class: "screen" },
-      bar(`${s.round}. gün · infaz`),
+      bar(`${dayN(s.round)} · ${L("infaz", "execution")}`),
       h("div", { class: "dawn-hero" },
-        h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, `KARAR ${v ? `${v.guilty}–${v.notGuilty}` : ""}`),
-        h("h1", {}, dead ? `${dead.name} asıldı.` : "Köy karar verdi."),
-        dead && h("p", { style: "font-size:20px" }, "O bir ", h("b", {}, WAS[dead.role] || "?"), "."),
-        ann && ann.will && h("div", { class: "will" }, h("span", { class: "eyebrow", style: "font-size:12px" }, "Vasiyeti"), h("q", {}, ann.will)),
+        h("span", { class: "mono muted", style: "letter-spacing:0.1em" }, `${L("KARAR", "VERDICT")} ${v ? `${v.guilty}–${v.notGuilty}` : ""}`),
+        h("h1", {}, dead ? L(`${dead.name} asıldı.`, `${dead.name} was hanged.`) : L("Köy karar verdi.", "The village has decided.")),
+        dead && wasLine(dead.role),
+        ann && ann.will && h("div", { class: "will" }, h("span", { class: "eyebrow", style: "font-size:12px" }, L("Vasiyeti", "Last words")), h("q", {}, ann.will)),
         m.heirRight && heirPicker()),
       h("div", { class: "stack" },
         m.can.includes("nextRound")
-          ? h("button", { class: "btn", onclick: () => cmd("nextRound") }, "Geceye geç")
-          : h("p", { class: "muted" }, "Muhtar hazır olunca gece çöker."))),
+          ? h("button", { class: "btn", onclick: () => cmd("nextRound") }, L("Geceye geç", "Bring the night"))
+          : h("p", { class: "muted" }, L("Muhtar hazır olunca gece çöker.", "Night falls when the Muhtar is ready.")))),
   };
 }
 
 function viewEnd() {
-  const won = s.winner === "koy" ? "Köy kazandı." : "Vampirler kazandı.";
-  const badgeOf = (id) => (s.badges || []).filter((b) => b.playerId === id).map((b) => ({ kazanan: "kazanan", muhtar: "Muhtar", deli: "Deli zaferi", kahin: "Kâhin" }[b.kind]));
+  const won = s.winner === "koy" ? L("Köy kazandı.", "The village wins.") : L("Vampirler kazandı.", "The vampires win.");
+  const BADGE = EN
+    ? { kazanan: "winner", muhtar: "Muhtar", deli: "Fool's win", kahin: "Prophet" }
+    : { kazanan: "kazanan", muhtar: "Muhtar", deli: "Deli zaferi", kahin: "Kâhin" };
+  const badgeOf = (id) => (s.badges || []).filter((b) => b.playerId === id).map((b) => b.kind);
   return {
     theme: "night end",
     el: h("section", { class: "screen" },
-      bar(`Oyun bitti · ${s.round}. gün`),
+      bar(L(`Oyun bitti · ${s.round}. gün`, `Game over · day ${s.round}`)),
       h("h1", { class: "hero", style: "font-size:clamp(56px,19vw,76px)" }, won),
-      s.deliWon && h("p", {}, "Deli de asılarak kendi zaferini aldı."),
+      s.deliWon && h("p", {}, L("Deli de asılarak kendi zaferini aldı.", "The fool was hanged and wins too.")),
       h("div", { class: "rows" }, s.players.map((p) =>
         h("div", { class: "row" },
-          h("span", { class: "who", style: "flex-grow:1" }, p.name + (p.id === m.pid ? " (sen)" : "")),
-          badgeOf(p.id).filter((b) => b !== "kazanan").map((b) => h("span", { class: "note", style: "color:var(--gold)" }, b)),
-          h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase("tr"))))),
+          h("span", { class: "who", style: "flex-grow:1" }, p.name + (p.id === m.pid ? YOU() : "")),
+          badgeOf(p.id).filter((b) => b !== "kazanan").map((b) => h("span", { class: "note", style: "color:var(--gold)" }, BADGE[b])),
+          h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase(LOC))))),
       // İfşa kartı: önizleme + açıkça düğme olan alt satır (telefon testi: kartın
       // dokunulabilir olduğu anlaşılmıyordu).
       h("button", { class: "reveal-cta", onclick: () => { showIfsa = true; showSeal = false; render(); } },
-        h("span", { class: "t" }, "● İFŞA PARTİSİ"),
-        h("span", { class: "reveal-title" }, "Kim, ne zaman, ne yaptı?"),
+        h("span", { class: "t" }, L("● İFŞA PARTİSİ", "● REVEAL PARTY")),
+        h("span", { class: "reveal-title" }, L("Kim, ne zaman, ne yaptı?", "Who did what, and when?")),
         h("span", { class: "preview" }, previewLines().map((t) => h("span", {}, t))),
-        h("span", { class: "open-row" }, h("span", {}, "Hikâyenin tamamı"), h("span", { "aria-hidden": "true" }, "→"))),
-      h("button", { class: "btn push", onclick: newRoom }, "Yeni oda")),
+        h("span", { class: "open-row" }, h("span", {}, L("Hikâyenin tamamı", "The whole story")), h("span", { "aria-hidden": "true" }, "→"))),
+      h("button", { class: "btn push", onclick: newRoom }, L("Yeni oda", "New room"))),
   };
 }
 
@@ -787,25 +904,28 @@ function newRoom() {
 
 /* ── ifşa partisi + mühür ayrıntısı (tasarım 21-22) ── */
 
+/** Sunucu hikâyeyi iki dilde yazar. */
+const storyOf = () => (EN && s.storyEn ? s.storyEn : s.story) || [];
+
 /** İfşa kartındaki önizleme: gecelerin ilk iki satırı. */
 function previewLines() {
-  const lines = (s.story || []).filter((c) => c.kind === "night").flatMap((c) => c.lines.map((l) => l.text));
+  const lines = storyOf().filter((c) => c.kind === "night").flatMap((c) => c.lines.map((l) => l.text));
   return lines.slice(0, 2);
 }
 
-const sealDot = (sealed) => h("span", { class: `sdot${sealed ? "" : " open"}`, title: sealed ? "mühürlendi" : "zincire gidiyor" });
+const sealDot = (sealed) => h("span", { class: `sdot${sealed ? "" : " open"}`, title: sealed ? L("mühürlendi", "sealed") : L("zincire gidiyor", "on its way to chain") });
 
 /** Gece gece, gün gün hikâye; oyun sonu ekranında ve ifşa görünümünde ortak. */
 function storyBlock() {
-  const story = s.story || [];
-  if (story.length === 0) return h("p", { class: "muted" }, "Hikâye hazırlanıyor…");
+  const story = storyOf();
+  if (story.length === 0) return h("p", { class: "muted" }, L("Hikâye hazırlanıyor…", "Preparing the story…"));
   return h("div", { class: "stack", style: "gap:12px" },
     h("div", { class: "story" }, story.map((c) => h("div", { class: "chapter" },
-      h("span", { class: "mono muted ch" }, c.title.toLocaleUpperCase("tr")),
+      h("span", { class: "mono muted ch" }, c.title.toLocaleUpperCase(LOC)),
       c.lines.map((l) => h("div", { class: "sline" }, sealDot(l.sealed), h("span", {}, l.text)))))),
     h("p", { class: "muted", style: "font-size:13px" }, s.seals.pending
-      ? `Kırmızı nokta = mühürlendi. Boş nokta = zincire gidiyor (${s.seals.pending} hamle yolda).`
-      : "Kırmızı nokta = o hamle oyun sırasında mühürlendi. Sonradan kimse değiştiremez."));
+      ? L(`Kırmızı nokta = mühürlendi. Boş nokta = zincire gidiyor (${s.seals.pending} hamle yolda).`, `Red dot = sealed. Empty dot = on its way to chain (${s.seals.pending} moves on the way).`)
+      : L("Kırmızı nokta = o hamle oyun sırasında mühürlendi. Sonradan kimse değiştiremez.", "Red dot = that move was sealed during the game. Nobody can change it afterwards.")));
 }
 
 function viewIfsa() {
@@ -813,52 +933,60 @@ function viewIfsa() {
   // Sunucunun "uydu" demesi yetmez: açılan kilit, bu telefonun lobide gördüğü kilit olmalı.
   const seen = store.get(commitKey(s.code));
   const lockOk = !!(s.reveal && s.reveal.seedOk) && (!seen || seen === s.reveal.commit);
+  const KV = EN ? ["draw", "secret", "lock", "viewing key"] : ["kura", "sır", "kilit", "görüntüleme anahtarı"];
   const sealBox = h("div", { class: "stack", style: "gap:12px" },
     h("div", { class: `okbox${lockOk ? "" : " warn"}` },
-      h("b", {}, lockOk ? "✓ Kura dürüst çekildi" : "Kura doğrulanamadı"),
+      h("b", {}, lockOk ? L("✓ Kura dürüst çekildi", "✓ The draw was fair") : L("Kura doğrulanamadı", "The draw could not be verified")),
       h("span", {}, lockOk
-        ? "Kuranın kilidi oda kurulurken belirlendi ve lobide bu telefona geldi. Roller, o kilitli sır ile her telefonun kendi kattığı sayıdan çekildi: dağıtımı kimse tek başına seçemezdi. Oyun bitince sır açıldı ve kilide uydu."
-        : "Oyun sonunda açılan sır, lobide gösterilen kilide uymuyor. Bu oyunun kurası doğrulanamadı.")),
+        ? L("Kuranın kilidi oda kurulurken belirlendi ve lobide bu telefona geldi. Roller, o kilitli sır ile her telefonun kendi kattığı sayıdan çekildi: dağıtımı kimse tek başına seçemezdi. Oyun bitince sır açıldı ve kilide uydu.",
+          "The lock on the draw was set when the room was created and reached this phone in the lobby. The roles were drawn from that locked secret and a number each phone added, so nobody could choose the deal alone. When the game ended the secret was revealed, and it matches the lock.")
+        : L("Oyun sonunda açılan sır, lobide gösterilen kilide uymuyor. Bu oyunun kurası doğrulanamadı.",
+          "The secret revealed at the end does not match the lock shown in the lobby. This game's draw could not be verified."))),
     h("div", { class: "will" },
-      h("b", {}, `${s.seals.memoCount} hamle · ${s.seals.txCount} mühür paketi`),
-      h("span", { class: "muted", style: "font-size:15px" }, pending ? `${pending} hamle daha zincire gidiyor; birkaç dakika içinde oturur.` : "Her gece hamlesi, her oy ve vasiyet Zcash ağına gizli notlar olarak yazıldı. Oyunun özet mührü hepsini tek parmak iziyle bağlar.")),
+      h("b", {}, L(`${s.seals.memoCount} hamle · ${s.seals.txCount} mühür paketi`, `${s.seals.memoCount} moves · ${s.seals.txCount} seal transactions`)),
+      h("span", { class: "muted", style: "font-size:15px" }, pending
+        ? L(`${pending} hamle daha zincire gidiyor; birkaç dakika içinde oturur.`, `${pending} more moves are on their way to chain; they settle within a few minutes.`)
+        : L("Her gece hamlesi, her oy ve vasiyet Zcash ağına gizli notlar olarak yazıldı. Oyunun özet mührü hepsini tek parmak iziyle bağlar.",
+          "Every night move, every vote and all last words were written to the Zcash network as shielded memos. The game's root seal ties them all to one fingerprint."))),
     h("details", { class: "tech" },
-      h("summary", {}, "Teknik ayrıntı"),
+      h("summary", {}, L("Teknik ayrıntı", "Technical details")),
       h("div", { class: "mono" },
-        h("p", { class: "muted", style: "font-family:var(--b-font)" }, "Kendin doğrula: sha256(sır) kilide eşit olmalı; kura, sır ile oyuncuların kattığı sayılardan türer. Görüntüleme anahtarıyla odanın bütün hamleleri herhangi bir Zcash cüzdanında okunur. Oyunun tamamını kurallarla yeniden oynatıp sınayan komut ve bu oyunun kaydı:"),
+        h("p", { class: "muted", style: "font-family:var(--b-font)" }, L(
+          "Kendin doğrula: sha256(sır) kilide eşit olmalı; kura, sır ile oyuncuların kattığı sayılardan türer. Görüntüleme anahtarıyla odanın bütün hamleleri herhangi bir Zcash cüzdanında okunur. Oyunun tamamını kurallarla yeniden oynatıp sınayan komut ve bu oyunun kaydı:",
+          "Check it yourself: sha256(secret) must equal the lock, and the draw follows from the secret and the numbers the players added. With the viewing key, any Zcash wallet can read every move of the room. The command that replays the whole game by the rules, and this game's record:")),
         h("p", {}, `bun tools/verify.ts ${location.origin}/g/${s.code}.json`),
         s.reveal && [
-          ["kura", String(s.reveal.seed)],
-          ["sır", String(s.reveal.salt)],
-          ["kilit", String(s.reveal.commit)],
-          ["görüntüleme anahtarı", String(s.reveal.ufvk)],
+          [KV[0], String(s.reveal.seed)],
+          [KV[1], String(s.reveal.salt)],
+          [KV[2], String(s.reveal.commit)],
+          [KV[3], String(s.reveal.ufvk)],
         ].map(([k, v]) => h("div", { class: "kvcopy" },
           h("span", {}, k),
           h("code", {}, v),
-          h("button", { class: "link", onclick: () => copyText(v, `${k} kopyalandı.`) }, "kopyala"))),
-        s.seals.recent.map((t) => h("div", {}, `paket  ${t}`)),
-        h("div", {}, `ağ  ${s.seals.chain === "zingo" ? "Zcash testnet" : "deneme (zincirsiz)"}`))));
+          h("button", { class: "link", onclick: () => copyText(v, L(`${k} kopyalandı.`, `${k} copied.`)) }, L("kopyala", "copy")))),
+        s.seals.recent.map((t) => h("div", {}, `${L("paket", "tx")}  ${t}`)),
+        h("div", {}, `${L("ağ", "network")}  ${s.seals.chain === "zingo" ? "Zcash testnet" : L("deneme (zincirsiz)", "demo (no chain)")}`))));
   return {
     theme: "night",
     el: h("section", { class: "screen" },
       h("div", { class: "bar" },
-        h("button", { class: "ghost small", onclick: () => { showIfsa = false; showSeal = false; render(); } }, "← Sonuç"),
-        h("span", { class: "seal" }, pending ? `● ${pending} yolda` : "● hepsi mühürlü")),
-      h("h1", {}, showSeal ? "Bu oyun zincirde." : "Kim, ne zaman, ne yaptı?"),
+        h("button", { class: "ghost small", onclick: () => { showIfsa = false; showSeal = false; render(); } }, L("← Sonuç", "← Result")),
+        h("span", { class: "seal" }, pending ? L(`● ${pending} yolda`, `● ${pending} on the way`) : L("● hepsi mühürlü", "● all sealed"))),
+      h("h1", {}, showSeal ? L("Bu oyun zincirde.", "This game is on chain.") : L("Kim, ne zaman, ne yaptı?", "Who did what, and when?")),
       showSeal ? sealBox : storyBlock(),
-      h("button", { class: "ghost push", onclick: () => { showSeal = !showSeal; render(); } }, showSeal ? "← Hikâyeye dön" : "Mühür ayrıntısı ▸")),
+      h("button", { class: "ghost push", onclick: () => { showSeal = !showSeal; render(); } }, showSeal ? L("← Hikâyeye dön", "← Back to the story") : L("Mühür ayrıntısı ▸", "Seal details ▸"))),
   };
 }
 
 /* ── perde: ?perde=KOD ── */
 
 function viewScreen() {
-  if (!s) return { theme: "night screen-mode", el: h("section", { class: "screen" }, h("h1", {}, "Perde bağlanıyor…")) };
+  if (!s) return { theme: "night screen-mode", el: h("section", { class: "screen" }, h("h1", {}, L("Perde bağlanıyor…", "Connecting the screen…"))) };
   const day = ["DAWN", "DAY", "EXECUTION"].includes(s.phase);
   return {
     theme: `${day ? "day" : "night"} screen-mode`,
     el: h("section", { class: "screen" },
-      bar(`${PHASE[s.phase]} · ${s.round || ""} · oda ${s.code}`),
+      bar(`${PHASE[s.phase]} · ${s.round || ""} · ${L("oda", "room")} ${s.code}`),
       h("div", { class: "stage" },
         h("div", { class: "stack" },
           h("h1", {}, s.phase === "LOBBY" ? `zkoy.fun/j/${s.code}` : PHASE[s.phase]),
@@ -866,7 +994,7 @@ function viewScreen() {
           h("div", { class: "rows" }, s.players.map((p) => h("div", { class: `row${p.alive ? "" : " dead"}` },
             h("span", { class: `av${p.isMuhtar ? " gold" : ""}` }, initial(p.name)), h("span", { class: "who" }, p.name),
             p.isMuhtar && h("span", { class: "badge" }, "Muhtar"), !p.alive && p.role && h("span", { class: "note" }, (ROLE[p.role] || {}).name))))),
-        h("div", { class: "feed" }, [...s.announcements].reverse().slice(0, 8).map((a) => h("div", {}, a.text))))),
+        h("div", { class: "feed" }, [...s.announcements].reverse().slice(0, 8).map((a) => h("div", {}, annText(a)))))),
   };
 }
 

@@ -8,6 +8,7 @@ import { commitOf, seedFrom, sha256Hex, tieSeedFrom } from "../engine/fair";
 import { MemoEvent, Role, RoomRules, RoomState } from "../engine/types";
 import { ZcashService } from "../zcash/service";
 import { Db } from "./db";
+import { Lang, aRole } from "./i18n";
 import { ActMsg, CmdMsg } from "./protocol";
 import { SealQueue } from "./seal-queue";
 import { StoryChapter, buildStory } from "./story";
@@ -31,6 +32,8 @@ export interface Announcement {
   at: number;
   kind: "info" | "dawn" | "verdict" | "end";
   text: string;
+  /** The same announcement in English. */
+  en?: string;
   will?: string | null;
 }
 
@@ -236,9 +239,9 @@ export class Room {
   }
 
   /** İfşa partisi hikâyesi (yalnız END'de anlamlı). */
-  story(): StoryChapter[] {
+  story(lang: Lang = "tr"): StoryChapter[] {
     if (this.gameId === null) return [];
-    return buildStory(this.deps.db, this.gameId, this.state.players);
+    return buildStory(this.deps.db, this.gameId, this.state.players, lang);
   }
 
   isHost(pid: string): boolean {
@@ -322,6 +325,7 @@ export class Room {
           this.announce(
             "verdict",
             `${this.name(s.day.trial.accused)} yargılanıyor (${s.day.trial.backers.map((b) => this.name(b)).join(", ")}). Savunma başladı.`,
+            `${this.name(s.day.trial.accused)} is on trial (${s.day.trial.backers.map((b) => this.name(b)).join(", ")}). The defence begins.`,
           );
         break;
       case "done":
@@ -340,7 +344,7 @@ export class Room {
         break;
       case "heir":
         events = engine.nameHeir(s, pid, need(m.x));
-        this.announce("info", `Yeni Muhtar: ${this.name(s.muhtar)}.`);
+        this.announce("info", `Yeni Muhtar: ${this.name(s.muhtar)}.`, `New Muhtar: ${this.name(s.muhtar)}.`);
         break;
     }
     this.commit(events);
@@ -419,7 +423,11 @@ export class Room {
         if (!this.hostAway()) throw new EngineError("kurucu masada, devralamazsın");
         const old = this.name(this.hostPid);
         this.hostPid = pid;
-        this.announce("info", `Kurucu ${old} koptu; masayı ${this.name(pid)} devraldı.`);
+        this.announce(
+          "info",
+          `Kurucu ${old} koptu; masayı ${this.name(pid)} devraldı.`,
+          `The host ${old} dropped out; ${this.name(pid)} took over the table.`,
+        );
         break;
       }
     }
@@ -450,9 +458,14 @@ export class Room {
     // Rol kompozisyonu herkese açık (17 Ağu salon dersi).
     const n = (r: Role) => this.state.players.filter((p) => p.role === r).length;
     const parts = [`${n("vampir")} vampir`, "1 doktor"];
-    if (n("gozcu")) parts.push("1 gözcü");
-    if (n("deli")) parts.push("1 deli");
-    this.announce("info", `Köyde ${parts.join(", ")} var. Önce Muhtar'ı seçin.`);
+    const partsEn = [`${n("vampir")} vampire${n("vampir") > 1 ? "s" : ""}`, "1 doctor"];
+    if (n("gozcu")) parts.push("1 gözcü"), partsEn.push("1 seer");
+    if (n("deli")) parts.push("1 deli"), partsEn.push("1 fool");
+    this.announce(
+      "info",
+      `Köyde ${parts.join(", ")} var. Önce Muhtar'ı seçin.`,
+      `The village has ${partsEn.join(", ")}. First, elect the Muhtar.`,
+    );
     return events;
   }
 
@@ -471,13 +484,23 @@ export class Room {
     const events = engine.resolveElection(this.state, tieSeedFrom(this.secret));
     const muhtar = this.name(this.state.muhtar);
     if (candidates.length === 0)
-      this.announce("info", `Aday çıkmadı, ebe kura çekti: Muhtar ${muhtar}. Gece çöküyor.`);
+      this.announce(
+        "info",
+        `Aday çıkmadı, ebe kura çekti: Muhtar ${muhtar}. Gece çöküyor.`,
+        `Nobody stood, so the narrator drew lots: ${muhtar} is Muhtar. Night falls.`,
+      );
     else if (tied.length > 1)
       this.announce(
         "info",
         `${tied.map((c) => this.name(c)).join(" ile ")} ${top}-${top} berabere kaldı. Ebe kura çekti: Muhtar ${muhtar}. Gece çöküyor.`,
+        `${tied.map((c) => this.name(c)).join(" and ")} tied ${top}-${top}. The narrator drew lots: ${muhtar} is Muhtar. Night falls.`,
       );
-    else this.announce("info", `Köyün Muhtarı ${muhtar} (${top} oy). Gece çöküyor.`);
+    else
+      this.announce(
+        "info",
+        `Köyün Muhtarı ${muhtar} (${top} oy). Gece çöküyor.`,
+        `${muhtar} is the village's Muhtar (${top} vote${top === 1 ? "" : "s"}). Night falls.`,
+      );
     return [...pre, ...events];
   }
 
@@ -489,9 +512,16 @@ export class Room {
     if (ln.gozcuResult && gozcu) this.gozcuLog.push({ round: ln.round, ...ln.gozcuResult });
     if (ln.died) {
       const dead = s.players.find((p) => p.id === ln.died)!;
-      this.announce("dawn", `Sabah ${dead.name} ölü bulundu. O bir ${ROLE_WAS[dead.role!]}.`, dead.will);
+      this.announce(
+        "dawn",
+        `Sabah ${dead.name} ölü bulundu. O bir ${ROLE_WAS[dead.role!]}.`,
+        `In the morning ${dead.name} was found dead. They were ${aRole(dead.role!)}.`,
+        dead.will,
+      );
+    } else if (ln.saved) {
+      this.announce("dawn", "Gece saldırı oldu ama doktor yetişti. Kimse ölmedi.", "There was an attack, but the doctor got there in time. Nobody died.");
     } else {
-      this.announce("dawn", ln.saved ? "Gece saldırı oldu ama doktor yetişti. Kimse ölmedi." : "Sessiz bir gece. Kimse ölmedi.");
+      this.announce("dawn", "Sessiz bir gece. Kimse ölmedi.", "A quiet night. Nobody died.");
     }
     if (s.phase === "END") this.announceEnd();
     return events;
@@ -504,19 +534,31 @@ export class Room {
       this.announce(
         "verdict",
         `${accused.name} asıldı (${v.guilty}-${v.notGuilty}). O bir ${ROLE_WAS[accused.role!]}.`,
+        `${accused.name} was hanged (${v.guilty}-${v.notGuilty}). They were ${aRole(accused.role!)}.`,
         accused.will,
       );
-    else this.announce("verdict", `${accused.name} beraat etti (${v.guilty}-${v.notGuilty}).`);
+    else
+      this.announce(
+        "verdict",
+        `${accused.name} beraat etti (${v.guilty}-${v.notGuilty}).`,
+        `${accused.name} was acquitted (${v.guilty}-${v.notGuilty}).`,
+      );
     if (this.state.phase === "END") this.announceEnd();
   }
 
   private announceEnd() {
-    const w = this.state.winner === "koy" ? "Köy kazandı!" : "Vampirler kazandı!";
-    this.announce("end", this.state.deliWon ? `${w} Deli de asılarak kendi zaferini aldı.` : w);
+    const village = this.state.winner === "koy";
+    const w = village ? "Köy kazandı!" : "Vampirler kazandı!";
+    const wEn = village ? "The village wins!" : "The vampires win!";
+    this.announce(
+      "end",
+      this.state.deliWon ? `${w} Deli de asılarak kendi zaferini aldı.` : w,
+      this.state.deliWon ? `${wEn} The fool was hanged and wins too.` : wEn,
+    );
   }
 
-  private announce(kind: Announcement["kind"], text: string, will?: string | null) {
-    this.announcements.push({ at: Date.now(), kind, text, will: will ?? undefined });
+  private announce(kind: Announcement["kind"], text: string, en: string, will?: string | null) {
+    this.announcements.push({ at: Date.now(), kind, text, en, will: will ?? undefined });
     if (this.announcements.length > 50) this.announcements.shift();
   }
 

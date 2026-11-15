@@ -19,7 +19,7 @@ In the classic Vampire Village game, one person, the narrator, knows every secre
 | "Who did what?" | the room's viewing key is revealed at the end; anyone can read the full log |
 | "Was it counted honestly?" | one command replays the sealed moves through the game's rules and checks every result |
 
-Seals use zero-value shielded outputs, so a game costs only network fees: about **0.003 TAZ for an 8-player game** on testnet (measured September 2026). Players never see the words wallet, ZEC or memo; they see a seal counter and, at the end, the reveal party.
+Seals use zero-value shielded outputs, so a game costs only network fees: about **0.005 TAZ for a seven-player, four-round game** on testnet (94 memos in three transactions, measured November 2026). Players never see the words wallet, ZEC or memo; they see a seal counter and, at the end, the reveal party.
 
 ## How a game goes
 
@@ -40,6 +40,12 @@ At the end of every game the app reveals the server's secret, the shuffle seed a
 bun tools/verify.ts https://zkoy.fun/g/<ROOM>.json
 ```
 
+To try it now, `H7CFD3` is a labelled bot table from 15 November 2026, sealed in three testnet transactions:
+
+```bash
+bun tools/verify.ts https://zkoy.fun/g/H7CFD3.json
+```
+
 That reads the game's record from the server. To take the server out of the picture, read the same memos from chain with the room's viewing key and pipe them in:
 
 ```bash
@@ -48,6 +54,8 @@ zingo-cli --chain testnet --server https://testnet.zec.rocks:443 \
   --birthday <a height before the game> --waitsync messages \
   | bun tools/verify.ts -
 ```
+
+zingo-cli has to know the current testnet upgrade (NU7); the fork in [docs/zingo-patch.md](docs/zingo-patch.md) does. Memos in one transaction come back in no particular order, which is why each carries its own sequence number.
 
 The verifier trusts nothing but the memos. It checks three things:
 
@@ -76,7 +84,7 @@ The memo format is specified in [docs/MEMOS.md](docs/MEMOS.md), enough to write 
  zingo-cli (fork on Zakura Common crates) ──gRPC──▶ lightwalletd ──▶ Zcash testnet
 ```
 
-- **Tempo from the server, proof from the chain.** The game never waits for a block; seals catch up within a minute or two, one transaction per round.
+- **Tempo from the server, proof from the chain.** The game never waits for a block. Seals follow a few minutes behind, at most one transaction per round; a fast table's rounds share one.
 - **Nothing secret leaves the server early.** The public view never contains a living player's role or a night choice; each phone receives only its own card.
 - **Restart-safe.** Room state and the seal queue live in SQLite; a server restart resumes games where they stopped. The database is copied once a day to `data/backups/`.
 - **A table cannot get stuck or be flooded.** A vote someone walked away from can be closed after a minute, a table whose host dropped can be taken over, and nothing is sealed for a table that never starts. Moves are rate-limited and every memo is checked against the 512-byte limit before it is queued.
@@ -90,6 +98,7 @@ Requires [Bun](https://bun.sh) 1.3+.
 bun install
 bun run dev                         # mock chain: the full game, no Zcash needed
 bun test                            # engine, rules, rooms, storage, WebSocket, verifier
+bun run check                       # type check
 bun tools/bots.ts <ROOM> 6          # seat six bots in a room for a solo run-through
 bun tools/verify.ts http://localhost:3131/g/<ROOM>.json   # check the finished game
 ```
@@ -108,6 +117,7 @@ To seal on testnet, build the zingo-cli fork (see [docs/zingo-patch.md](docs/zin
 | `ZKOY_OPS_DIR` | `~/.zingo-testnet` | wallet that pays the seals |
 | `ZKOY_OPS_ADDRESS` | none | enables the automatic testnet faucet top-up |
 | `ZKOY_WALLETS_ROOT` | `~/.zkoy-wallets` | per-room and per-player wallets |
+| `ZKOY_BACKUP` | on | `0` turns off the daily copy to `data/backups/` |
 
 ## Repository
 
@@ -131,7 +141,7 @@ test/          bun test suites
 
 ## Status
 
-- **Live on testnet** at [zkoy.fun](https://zkoy.fun). The prototype was played at two in-person events in Türkiye in August 2026. The counters at [zkoy.fun/stats](https://zkoy.fun/stats) cover the current version only: real games, unique devices and sealed moves, with labelled test tables left out. Finished games are listed at [zkoy.fun/games](https://zkoy.fun/games) with their seal transactions.
+- **Live on testnet** at [zkoy.fun](https://zkoy.fun). The counters at [zkoy.fun/stats](https://zkoy.fun/stats) cover this rewrite only, and finished games are listed at [zkoy.fun/games](https://zkoy.fun/games) with their seal transactions. So far they hold one game, a bot rehearsal from October 2026; tables opened with `?test=1` are labelled and left out.
 - **Next:** the big-screen mode (narration and the village square on a projector, phones as controllers), the Flutter app for iOS and Android, and sponsored event rooms that seal on mainnet.
 - ZKöy began at the ZcashTR 48-hour challenge during Rlay Blockchain Week in Şirince (August 2026), where it took first place. The current version is a full rewrite of that prototype.
 

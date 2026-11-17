@@ -13,7 +13,9 @@ import { Db, openDb } from "./db";
 import { Lang, errorText } from "./i18n";
 import { ClientMsg, MAX_MSG_BYTES, ProtocolError, parseClientMsg } from "./protocol";
 import { Room } from "./room";
+import { POINTS } from "../engine/score";
 import { SealQueue } from "./seal-queue";
+import { admit, findTournament } from "./tournaments";
 import { privateView, publicView } from "./views";
 
 const CODE_ALPHABET = "ACDEFHJKLMNPRSTUVYZ234679";
@@ -202,7 +204,11 @@ export function startServer(opts: ServerOptions = {}) {
       let room: Room;
       if (msg.t === "create") {
         if (!limits.allow(`create:${ws.data.ip}`, 5)) throw new ProtocolError("çok hızlı oda kuruluyor, biraz bekle");
-        room = new Room(newCode(), deps, msg.rules, { test: msg.test });
+        const tour = msg.tour ? admit(msg.tour.code, msg.tour.key) : null;
+        room = new Room(newCode(), deps, msg.rules, {
+          test: msg.test || !!tour?.test,
+          tournament: tour?.code ?? null,
+        });
         wire(room);
       } else {
         if (!limits.allow(`join:${ws.data.ip}`, 30)) throw new ProtocolError("çok fazla deneme, biraz bekle");
@@ -272,7 +278,10 @@ export function startServer(opts: ServerOptions = {}) {
 
   const webRoot = normalize(webDir) + sep;
   function serveStatic(pathname: string): Response | Promise<Response> {
-    const rel = pathname === "/" || pathname.startsWith("/j/") ? "index.html" : pathname.slice(1);
+    const rel =
+      pathname === "/" || pathname.startsWith("/j/") || /^\/e\/[A-Za-z0-9]{2,16}$/.test(pathname)
+        ? "index.html"
+        : pathname.slice(1);
     if (rel === "index.html" && existsSync(joinPath(webDir, rel))) return serveIndex();
     const file = normalize(joinPath(webDir, rel));
     if (!file.startsWith(webRoot) || !existsSync(file))
@@ -355,6 +364,27 @@ export function startServer(opts: ServerOptions = {}) {
         sealsFailing: seals.failing().length,
       });
     if (url.pathname === "/games") return Response.json({ games: db.recentGames(100) });
+    const e = url.pathname.match(/^\/e\/([A-Za-z0-9]{2,16})\.json$/);
+    if (e) {
+      const t = findTournament(e[1]!);
+      if (!t) return new Response("bulunamadı", { status: 404 });
+      return Response.json(
+        {
+          code: t.code,
+          title: t.title,
+          titleEn: t.titleEn,
+          from: t.from,
+          to: t.to,
+          test: !!t.test,
+          points: POINTS,
+          board: db.board(t.code, !!t.test),
+          // Every game is public: /g/<code>.json and tools/verify.ts re-add the board.
+          games: db.tournamentGames(t.code, !!t.test),
+          liveTables: [...rooms.values()].filter((r) => r.tournament === t.code && r.state.phase !== "END").length,
+        },
+        { headers: { "Cache-Control": "no-cache" } },
+      );
+    }
     const g = url.pathname.match(/^\/g\/([A-Za-z0-9]{4,8})\.json$/);
     if (g) {
       if (!limits.allow(`g:${ip}`, 30)) return new Response("çok fazla deneme", { status: 429 });

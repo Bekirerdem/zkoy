@@ -34,7 +34,15 @@ export type CmdMsg = { t: "cmd"; c: CmdKind; x?: string };
 
 export type ClientMsg =
   | { t: "hello"; device: string; code?: string; token?: string; lang?: "tr" | "en" }
-  | { t: "create"; name: string; rules?: Partial<RoomRules>; n: string; test: boolean }
+  | {
+      t: "create";
+      name: string;
+      rules?: Partial<RoomRules>;
+      n: string;
+      test: boolean;
+      /** Open the table for a tournament: its code and the host key. */
+      tour?: { code: string; key: string };
+    }
   | { t: "join"; code: string; name: string; n: string }
   | { t: "watch"; code: string }
   | ActMsg
@@ -85,7 +93,13 @@ export function parseClientMsg(raw: string): ClientMsg {
       const rules: Partial<RoomRules> = {};
       if (r.gozcu === true || r.gozcu === false || r.gozcu === null) rules.gozcu = r.gozcu;
       if (r.accusedVotes === true || r.accusedVotes === false) rules.accusedVotes = r.accusedVotes;
-      return { t: "create", name: m.name.trim(), rules, n: nonce(m.n), test: m.test === true };
+      let tour: { code: string; key: string } | undefined;
+      if (m.tour !== undefined) {
+        const t = (m.tour ?? {}) as Record<string, unknown>;
+        if (!str(t.code, 16) || !str(t.key, 64)) throw new ProtocolError("turnuva anahtarı geçersiz");
+        tour = { code: t.code.toUpperCase(), key: t.key };
+      }
+      return { t: "create", name: m.name.trim(), rules, n: nonce(m.n), test: m.test === true, tour };
     }
     case "join":
       if (!str(m.code, 8)) throw new ProtocolError("oda kodu eksik");

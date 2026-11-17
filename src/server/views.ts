@@ -4,6 +4,13 @@
 
 import { supportWeight, trialNeed, weightOf } from "../engine/engine";
 import { commitOf, seedFrom } from "../engine/fair";
+import { gamePoints } from "../engine/score";
+import { findTournament } from "./tournaments";
+
+function tournamentInfo(code: string) {
+  const t = findTournament(code);
+  return t ? { code: t.code, title: t.title, titleEn: t.titleEn } : { code, title: code, titleEn: code };
+}
 import { Role } from "../engine/types";
 import { CmdKind } from "./protocol";
 import { NIGHT_FORCE_MS, Room, VERDICT_FORCE_MS } from "./room";
@@ -32,6 +39,10 @@ export function publicView(room: Room, seals: SealQueue, chain: string) {
     rules: s.rules,
     /** Etiketli test masası: oynanır ve mühürlenir ama hiçbir sayaca girmez. */
     test: room.test,
+    /** Masanın bağlı olduğu turnuva (puan tablosu /e/<KOD>.json). */
+    tournament: room.tournament ? tournamentInfo(room.tournament) : null,
+    /** END: bu oyunda koltuk başına turnuva puanı. */
+    points: end && room.tournament ? gamePoints(s) : null,
     /** Kuranın kilidi: oda kurulurken sabitlenir, lobiden itibaren görünür. */
     seedCommit: s.seedCommit,
     hostPid: room.hostPid,
@@ -134,6 +145,8 @@ export function privateView(room: Room, pid: string) {
     roles: ghost ? Object.fromEntries(s.players.map((p) => [p.id, p.role])) : null,
     myProphecy: ghost ? (s.gvotes[pid] ?? null) : null,
     heirRight: s.heirPending === pid,
+    /** END + turnuva: bu oyunun puanı, toplam, sıra. */
+    standing: room.standing(pid),
     can: allowed(room, pid),
   };
 }

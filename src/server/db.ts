@@ -6,6 +6,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join as joinPath } from "node:path";
+import { sha256Hex } from "../engine/fair";
 import { MemoEvent } from "../engine/types";
 
 export interface GamePlayer {
@@ -83,7 +84,36 @@ const MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
   { table: "games", column: "test", ddl: "ALTER TABLE games ADD COLUMN test INTEGER NOT NULL DEFAULT 0" },
   // 'room' or the seat id the memo was sent to; older rows stay NULL.
   { table: "events", column: "dest", ddl: "ALTER TABLE events ADD COLUMN dest TEXT" },
+  { table: "games", column: "tournament", ddl: "ALTER TABLE games ADD COLUMN tournament TEXT" },
+  // Tournament points of the seat, written at END (src/engine/score.ts).
+  { table: "game_players", column: "points", ddl: "ALTER TABLE game_players ADD COLUMN points INTEGER" },
+  { table: "game_players", column: "won", ddl: "ALTER TABLE game_players ADD COLUMN won INTEGER" },
 ];
+
+/** What a phone may know about another device: a short tag, never the key. */
+export const deviceTag = (deviceKey: string): string => sha256Hex(`zkoy-device:${deviceKey}`).slice(0, 10);
+
+/** One row of a tournament leaderboard. */
+export interface BoardRow {
+  /** Short stable id of the device, so a phone can find itself; not the device key. */
+  id: string;
+  name: string;
+  points: number;
+  games: number;
+  wins: number;
+  /** Unique; equal points, wins and games are ordered by the sealed draw. */
+  rank: number;
+  /** Placed by the draw: someone else has the same points, wins and games. */
+  tie: boolean;
+}
+
+export interface TournamentGame {
+  code: string;
+  endedAt: number;
+  players: number;
+  winner: string | null;
+  gameroot: string | null;
+}
 
 const INDEXES = `
 CREATE INDEX IF NOT EXISTS events_code ON events (code);
@@ -121,12 +151,18 @@ export class Db {
       .run(key, name, now, now);
   }
 
-  createGame(code: string, players: GamePlayer[], seedCommit: string, test = false): number {
+  createGame(
+    code: string,
+    players: GamePlayer[],
+    seedCommit: string,
+    test = false,
+    tournament: string | null = null,
+  ): number {
     const res = this.sql
       .query(
-        `INSERT INTO games (code, started_at, players, seed_commit, test) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO games (code, started_at, players, seed_commit, test, tournament) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(code, Date.now(), players.length, seedCommit, test ? 1 : 0);
+      .run(code, Date.now(), players.length, seedCommit, test ? 1 : 0, tournament);
     const gameId = Number(res.lastInsertRowid);
     const ins = this.sql.query(
       `INSERT INTO game_players (game_id, pid, device_key, name, role) VALUES (?, ?, ?, ?, ?)`,
@@ -139,6 +175,78 @@ export class Db {
     this.sql
       .query(`UPDATE games SET ended_at = ?, winner = ?, gameroot = ? WHERE id = ?`)
       .run(Date.now(), winner, gameroot, gameId);
+  }
+
+  setPoints(gameId: number, points: Record<string, number>, winners: string[]): void {
+    const upd = this.sql.query(`UPDATE game_players SET points = ?, won = ? WHERE game_id = ? AND pid = ?`);
+    for (const [pid, n] of Object.entries(points)) upd.run(n, winners.includes(pid) ? 1 : 0, gameId, pid);
+  }
+
+  /**
+   * A tournament's leaderboard: points summed per device over its finished
+   * games, the name taken from the device's latest game. Between equal points
+   * more wins, then fewer games, comes first; then the draw below.
+   * Test games count only when `test` is set (a rehearsal tournament).
+   */
+  board(tournament: string, test = false): BoardRow[] {
+    const rows = this.sql
+      .query(
+        `SELECT gp.device_key AS dev, SUM(COALESCE(gp.points, 0)) AS points, COUNT(*) AS games,
+                SUM(COALESCE(gp.won, 0)) AS wins,
+                (SELECT gp2.name FROM game_players gp2 JOIN games g2 ON g2.id = gp2.game_id
+                  WHERE gp2.device_key = gp.device_key AND g2.tournament = ?
+                  ORDER BY g2.id DESC LIMIT 1) AS name
+           FROM game_players gp JOIN games g ON g.id = gp.game_id
+          WHERE g.tournament = ? AND g.ended_at IS NOT NULL AND g.test = ? AND gp.device_key != ''
+          GROUP BY gp.device_key
+          ORDER BY points DESC, wins DESC, games ASC`,
+      )
+      .all(tournament, tournament, test ? 1 : 0) as Array<{
+      dev: string;
+      points: number;
+      games: number;
+      wins: number;
+      name: string;
+    }>;
+    // A tie that survives points, wins and games is settled by a draw nobody
+    // can steer: sha256 over every sealed gameroot of the tournament, then the
+    // phone's tag. It changes with each finished game and is fixed by the last.
+    const roots = this.tournamentGames(tournament, test)
+      .map((g) => g.gameroot ?? "")
+      .join("");
+    const same = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
+      a.points === b.points && a.wins === b.wins && a.games === b.games;
+    const draw = (r: (typeof rows)[number]) => sha256Hex(`${roots}:${deviceTag(r.dev)}`);
+    rows.sort(
+      (a, b) =>
+        b.points - a.points || b.wins - a.wins || a.games - b.games || (draw(a) < draw(b) ? -1 : 1),
+    );
+    return rows.map((r, i) => ({
+      id: deviceTag(r.dev),
+      name: r.name,
+      points: r.points,
+      games: r.games,
+      wins: r.wins,
+      rank: i + 1,
+      tie: (i > 0 && same(rows[i - 1]!, r)) || (i + 1 < rows.length && same(rows[i + 1]!, r)),
+    }));
+  }
+
+  tournamentGames(tournament: string, test = false): TournamentGame[] {
+    return (
+      this.sql
+        .query(
+          `SELECT code, ended_at, players, winner, gameroot FROM games
+            WHERE tournament = ? AND ended_at IS NOT NULL AND test = ? ORDER BY id`,
+        )
+        .all(tournament, test ? 1 : 0) as Array<{
+        code: string;
+        ended_at: number;
+        players: number;
+        winner: string | null;
+        gameroot: string | null;
+      }>
+    ).map((g) => ({ code: g.code, endedAt: g.ended_at, players: g.players, winner: g.winner, gameroot: g.gameroot }));
   }
 
   /** Labels every game played under a room code as a test; returns how many. */

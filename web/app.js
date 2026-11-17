@@ -139,6 +139,27 @@ const watchCode = params.get("perde");
 const testMode = params.get("test") === "1";
 
 /**
+ * Turnuva kurucusu: `/?t=KOD&k=ANAHTAR` linkini bir kez açar; bu telefondan
+ * kurulan masalar o turnuvanın puan tablosuna yazılır. Anahtar adres
+ * çubuğunda kalmasın diye hemen silinir.
+ */
+let tour = store.get("zkoy.tour");
+if (params.get("t") && params.get("k")) {
+  tour = { code: params.get("t").toUpperCase(), key: params.get("k") };
+  store.set("zkoy.tour", tour);
+  const u = new URL(location.href);
+  u.searchParams.delete("t");
+  u.searchParams.delete("k");
+  history.replaceState(null, "", u.pathname + u.search);
+}
+function dropTour() {
+  tour = null;
+  store.del("zkoy.tour");
+  render();
+}
+const tourTitle = (t) => (EN ? t.titleEn : t.title);
+
+/**
  * Kuraya bu telefonun katkısı: sunucu rolleri kendi sırrı + bütün telefonların
  * bu sayılarıyla çeker, yani dağıtımı tek başına seçemez.
  */
@@ -244,6 +265,8 @@ function connect() {
         session = null;
         s = m = null;
       }
+      // Turnuva linki geçersizse unut; kurucu normal masa kurabilsin.
+      if (/turnuva anahtarı|tournament link/.test(f.e)) { tour = null; store.del("zkoy.tour"); }
       toast(f.e);
     }
     render();
@@ -440,7 +463,7 @@ function viewSetup() {
   const create = () => {
     const name = (draft.name || "").trim();
     if (!name) { setup = false; render(); return toast(NAME_FIRST()); }
-    send({ t: "create", name, rules: setupRules, n: nonce(), test: testMode });
+    send({ t: "create", name, rules: setupRules, n: nonce(), test: testMode, tour: tour || undefined });
   };
   return {
     theme: "night",
@@ -453,6 +476,9 @@ function viewSetup() {
         seg("gozcu", [[null, L("Otomatik", "Auto")], [true, L("Var", "Yes")], [false, L("Yok", "No")]]),
         h("span", { class: "mono muted", style: "font-size:12px" }, L("otomatik = 13 ve üstü oyuncuda var", "auto = yes with 13 or more players"))),
       h("div", { class: "stack push" },
+        tour && h("div", { class: "bar" },
+          h("span", {}, L("Turnuva masası: ", "Tournament table: "), h("b", {}, tour.code)),
+          h("button", { class: "link", onclick: dropTour }, L("Turnuvasız kur", "Without tournament"))),
         h("span", { class: "muted" }, L("İlk oyunsa varsayılanlar iyi. Sonra değiştirirsiniz.", "The defaults suit a first game. You can change them later.")),
         h("button", { class: "btn", onclick: create }, L("Odayı kur", "Create the room")))),
   };
@@ -565,6 +591,7 @@ function viewLobby() {
           c.gozcu ? chip("gozcu", L("1 gözcü", "1 seer")) : chip("off", L("gözcü yok", "no seer")),
           c.deli ? chip("deli", L("1 deli", "1 fool")) : null,
           chip("koylu", many(c.koylu, "köylü", "villager")),
+          s.tournament ? chip("deli", L(`turnuva · ${tourTitle(s.tournament)}`, `tournament · ${tourTitle(s.tournament)}`)) : null,
           s.test ? chip("off", L("test masası · sayaçlara girmez", "test table · not counted")) : null),
         h("span", { class: "muted", style: "font-size:13px" }, L(
           `Masa büyüdükçe dağılım kendiliğinden değişir. Sanık kendi davasında ${s.rules.accusedVotes ? "oy kullanır" : "oy kullanmaz"}.`,
@@ -880,7 +907,14 @@ function viewEnd() {
         h("div", { class: "row" },
           h("span", { class: "who", style: "flex-grow:1" }, p.name + (p.id === m.pid ? YOU() : "")),
           badgeOf(p.id).filter((b) => b !== "kazanan").map((b) => h("span", { class: "note", style: "color:var(--gold)" }, BADGE[b])),
-          h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase(LOC))))),
+          h("span", { style: p.role === "vampir" ? "color:#E8A39C;font-weight:600" : "color:var(--soft)" }, ((ROLE[p.role] || {}).name || "").toLocaleLowerCase(LOC)),
+          s.points && h("span", { class: "mono", style: "min-width:34px;text-align:right;color:var(--gold)" }, `+${s.points[p.id] || 0}`)))),
+      m.standing && h("a", { class: "ledger", href: `/e/${s.tournament.code}`, style: "text-decoration:none;color:inherit" },
+        h("span", { class: "t" }, L(`● ${tourTitle(s.tournament).toLocaleUpperCase(LOC)}`, `● ${tourTitle(s.tournament).toLocaleUpperCase(LOC)}`)),
+        h("span", {}, L(
+          `Bu oyun +${m.standing.points} puan. Toplamın ${m.standing.total}, sıran ${m.standing.rank} / ${m.standing.of}.`,
+          `This game +${m.standing.points} points. Your total is ${m.standing.total}, you are ${m.standing.rank} of ${m.standing.of}.`)),
+        h("span", { class: "muted" }, L("Puan tablosu →", "Leaderboard →"))),
       // İfşa kartı: önizleme + açıkça düğme olan alt satır (telefon testi: kartın
       // dokunulabilir olduğu anlaşılmıyordu).
       h("button", { class: "reveal-cta", onclick: () => { showIfsa = true; showSeal = false; render(); } },

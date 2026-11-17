@@ -53,7 +53,8 @@ if (report.summary) {
   const s = report.summary;
   console.log(`\n${s.players.length} players, ${s.rounds} round(s), ${s.memos} memos in the full log (${s.roomMemos} in the room wallet)`);
   console.log(`winner: ${s.winner === "koy" ? "village" : "vampires"}`);
-  for (const p of s.players) console.log(`  ${p.id.padEnd(4)} ${p.name.padEnd(18)} ${p.role}`);
+  for (const p of s.players)
+    console.log(`  ${p.id.padEnd(4)} ${p.name.padEnd(18)} ${String(p.role).padEnd(8)} ${p.points} pt`);
 }
 console.log(report.ok ? "\nVERIFIED: the sealed record is complete and every outcome follows from the rules." : "\nNOT VERIFIED.");
 process.exit(report.ok ? 0 : 1);

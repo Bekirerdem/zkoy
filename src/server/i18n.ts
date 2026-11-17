@@ -67,6 +67,8 @@ const EXACT: Record<string, string> = {
   "böyle bir oda yok": "No such room.",
   "çok fazla deneme, biraz bekle": "Too many attempts, wait a little.",
   "önce hello gönder": "Send hello first.",
+  "turnuva anahtarı geçersiz": "This tournament link is not valid.",
+  "turnuva şu an açık değil": "This tournament is not open right now.",
   "çok hızlı oda kuruluyor, biraz bekle": "Rooms are being created too fast, wait a little.",
   "önce odaya katıl": "Join a room first.",
   "çok hızlı, biraz yavaşla": "Too fast, slow down.",

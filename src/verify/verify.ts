@@ -20,6 +20,7 @@
 import * as engine from "../engine/engine";
 import { EngineError, MEMO_VERSION } from "../engine/engine";
 import { commitOf, seedFrom, sha256Hex, tieSeedFrom } from "../engine/fair";
+import { gamePoints } from "../engine/score";
 import { MemoEvent, Role, RoomRules, RoomState, Winner } from "../engine/types";
 
 export interface Check {
@@ -33,7 +34,8 @@ export interface VerifyReport {
   code: string | null;
   checks: Check[];
   summary: {
-    players: Array<{ id: string; name: string; role: Role | null }>;
+    /** `points`: tournament points of the seat (src/engine/score.ts), from the replay. */
+    players: Array<{ id: string; name: string; role: Role | null; points: number }>;
     winner: Winner;
     rounds: number;
     /** Memos in the full log, role cards included. */
@@ -247,12 +249,13 @@ export function verifyGame(rawMemos: string[], opts: { code?: string } = {}): Ve
       : `the sealed root does not match: expected h=${h} n=${log.length} w=${String(state.winner)}`,
   );
 
+  const points = gamePoints(state);
   return {
     ok: checks.every((c) => c.ok),
     code,
     checks,
     summary: {
-      players: state.players.map((p) => ({ id: p.id, name: p.name, role: p.role })),
+      players: state.players.map((p) => ({ id: p.id, name: p.name, role: p.role, points: points[p.id] ?? 0 })),
       winner: state.winner,
       rounds: state.round,
       memos: log.length,

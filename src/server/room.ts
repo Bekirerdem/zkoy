@@ -5,9 +5,10 @@
 import * as engine from "../engine/engine";
 import { EngineError } from "../engine/engine";
 import { commitOf, seedFrom, sha256Hex, tieSeedFrom } from "../engine/fair";
+import { gamePoints, gameWinners } from "../engine/score";
 import { MemoEvent, Role, RoomRules, RoomState } from "../engine/types";
 import { ZcashService } from "../zcash/service";
-import { Db } from "./db";
+import { Db, deviceTag } from "./db";
 import { Lang, aRole } from "./i18n";
 import { ActMsg, CmdMsg } from "./protocol";
 import { SealQueue } from "./seal-queue";
@@ -65,6 +66,8 @@ export interface RoomDeps {
 export interface RoomOptions {
   /** A labelled test table: it is played and sealed like any other, but never counted. */
   test?: boolean;
+  /** Tournament code; the game's points go to its leaderboard. */
+  tournament?: string | null;
 }
 
 interface Snapshot {
@@ -85,6 +88,7 @@ interface Snapshot {
   verdictStartedAt?: number | null;
   test?: boolean;
   lastActivity?: number;
+  tournament?: string | null;
 }
 
 export class Room {
@@ -104,6 +108,7 @@ export class Room {
   address = "";
   ufvk = "";
   test = false;
+  tournament: string | null = null;
   lastActivity = Date.now();
   /** Kuranın sunucu payı; taahhüdü oda kurulurken sabitlenir, END'de açılır. */
   private secret: string;
@@ -131,6 +136,7 @@ export class Room {
     // katkısını gördükten sonra seçemez.
     this.state.seedCommit = commitOf(this.secret);
     this.test = opts.test ?? false;
+    this.tournament = opts.tournament ?? null;
   }
 
   /** Room wallet (offline, instant); UFVK is revealed at END. */
@@ -173,6 +179,7 @@ export class Room {
     room.ufvk = s.ufvk;
     room.secret = s.secret ?? s.state.seedSalt ?? room.secret;
     room.test = s.test ?? false;
+    room.tournament = s.tournament ?? null;
     room.lastActivity = s.lastActivity ?? Date.now();
     if (room.gameId !== null) room.ensureWallet();
     return room;
@@ -196,6 +203,7 @@ export class Room {
       secret: this.secret,
       test: this.test,
       lastActivity: this.lastActivity,
+      tournament: this.tournament,
     };
     return JSON.stringify(s);
   }
@@ -453,6 +461,7 @@ export class Room {
       })),
       commit,
       this.test,
+      this.tournament,
     );
     this.ensureWallet();
     // Rol kompozisyonu herkese açık (17 Ağu salon dersi).
@@ -629,5 +638,17 @@ export class Room {
     this.deps.seals.enqueue(this.code, [root], ids);
     this.deps.seals.release(this.code);
     this.deps.db.endGame(this.gameId!, this.state.winner, h);
+    this.deps.db.setPoints(this.gameId!, gamePoints(this.state), gameWinners(this.state));
+  }
+
+  /** This seat's points in the game and its place on the tournament board (END only). */
+  standing(pid: string): { points: number; total: number; rank: number; of: number } | null {
+    if (!this.tournament || this.state.phase !== "END") return null;
+    const dev = this.devices.get(pid);
+    if (!dev) return null;
+    const board = this.deps.db.board(this.tournament, this.test);
+    const row = board.find((r) => r.id === deviceTag(dev));
+    if (!row) return null;
+    return { points: gamePoints(this.state)[pid] ?? 0, total: row.points, rank: row.rank, of: board.length };
   }
 }

@@ -148,7 +148,7 @@ describe("over the wire", () => {
     const res = await fetch(`http://${base}/e/btu23.json`);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toMatchObject({ code: "BTU23", board: [], games: [], points: POINTS, test: false });
+    expect(body).toMatchObject({ code: "BTU23", board: [], games: [], points: POINTS, test: false, prizesUsd: [50, 30, 20] });
     expect((await fetch(`http://${base}/e/YOKBOYLE.json`)).status).toBe(404);
     const page = await fetch(`http://${base}/e/BTU23`);
     expect(page.status).toBe(200);

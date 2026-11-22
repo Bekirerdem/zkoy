@@ -376,6 +376,7 @@ export function startServer(opts: ServerOptions = {}) {
           from: t.from,
           to: t.to,
           test: !!t.test,
+          prizesUsd: t.prizesUsd ?? [],
           points: POINTS,
           board: db.board(t.code, !!t.test),
           // Every game is public: /g/<code>.json and tools/verify.ts re-add the board.

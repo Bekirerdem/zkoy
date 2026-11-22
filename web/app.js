@@ -135,6 +135,8 @@ const wasLine = (role) => h("p", { style: "font-size:20px" }, L("O bir ", "They 
 const params = new URLSearchParams(location.search);
 const pathCode = (location.pathname.match(/^\/j\/([A-Za-z0-9]{4,8})/) || [])[1];
 const watchCode = params.get("perde");
+/** `/e/KOD`: bir turnuvanın puan tablosu (perdeye yansıtılır, telefonda da açılır). */
+const boardCode = ((location.pathname.match(/^\/e\/([A-Za-z0-9]{2,16})\/?$/) || [])[1] || "").toUpperCase() || null;
 /** `/?test=1` ile kurulan masa test etiketlidir: oynanır, mühürlenir, sayaçlara girmez. */
 const testMode = params.get("test") === "1";
 
@@ -287,7 +289,8 @@ function render() {
   let view;
   let key;
   const ebe = !watchCode && session && s && m && !cardOpen ? pendingEbe() : null;
-  if (watchCode) [view, key] = [viewScreen(), "perde"];
+  if (boardCode) [view, key] = [viewBoard(), "board"];
+  else if (watchCode) [view, key] = [viewScreen(), "perde"];
   else if (rulesStep !== null) [view, key] = [viewRules(rulesStep), `kural:${rulesStep}`];
   else if (!session || !s || !m) [view, key] = setup ? [viewSetup(), "setup"] : [viewEntry(), "entry"];
   else if (cardOpen && m.role) [view, key] = [viewCard(), "card"];
@@ -1032,5 +1035,139 @@ function viewScreen() {
   };
 }
 
-connect();
+/* ── puan tablosu: /e/KOD ── */
+
+/** Son okunan tablo (`/e/KOD.json`), okunamadıysa nedeni, bu telefonun tablodaki kimliği. */
+let tb = null;
+let tbErr = null;
+let meTag = null;
+
+/** Sunucunun tabloda kullandığı kısa kimlik: sha256("zkoy-device:" + cihaz) ilk 10 hane. */
+async function deviceTagOf(d) {
+  if (!crypto.subtle) return null;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`zkoy-device:${d}`));
+  return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("").slice(0, 10);
+}
+
+async function pollBoard() {
+  if (document.visibilityState === "visible" || !tb) {
+    try {
+      const res = await fetch(`/e/${boardCode}.json`, { cache: "no-store" });
+      if (res.status === 404) tbErr = "yok";
+      else if (!res.ok) throw new Error(String(res.status));
+      else { tb = await res.json(); tbErr = null; }
+    } catch { tbErr = tb ? null : "ag"; online = false; }
+    if (!tbErr) online = true;
+    render();
+  }
+  if (tbErr !== "yok") setTimeout(pollBoard, 5000);
+}
+
+function startBoard() {
+  deviceTagOf(device).then((t) => { meTag = t; render(); }).catch(() => {});
+  render();
+  pollBoard();
+}
+
+const prizeText = (usd) => L(`${usd} $ ZEC`, `$${usd} in ZEC`);
+const sameScore = (a, b) => a.points === b.points && a.wins === b.wins && a.games === b.games;
+
+function viewBoard() {
+  const wrap = (...kids) => ({ theme: "night board", el: h("section", { class: "screen bd" }, ...kids) });
+  const plain = () => h("div", { class: "bar" }, h("span", { class: "eyebrow" }, L("ZKöy · puan tablosu", "ZKöy · leaderboard")), langButton());
+  if (tbErr === "yok") return wrap(plain(), h("h1", {}, L("Böyle bir turnuva yok.", "There is no such tournament.")),
+    h("a", { class: "link", href: "/" }, L("Oyuna dön", "Back to the game")));
+  if (!tb) return wrap(plain(), h("h1", {}, tbErr ? NO_LINK() : L("Tablo yükleniyor…", "Loading the board…")));
+
+  const title = EN ? tb.titleEn : tb.title;
+  const now = Date.now();
+  const before = now < tb.from;
+  const over = now > tb.to;
+  const day = new Date(tb.from).toLocaleDateString(LOC, { day: "numeric", month: "long" });
+  const rows = tb.board;
+  const prizes = tb.prizesUsd || [];
+  const top = Math.min(Math.max(prizes.length, 3), rows.length);
+  const me = meTag && rows.find((r) => r.id === meTag);
+  const sealedGames = tb.games.filter((g) => g.gameroot).length;
+  const pendingGames = tb.games.length - sealedGames;
+  document.title = `${title} · ZKöy`;
+
+  // Kura yalnız ödülü belirleyen sırada söylenir: ilk üçteki biri, birebir eşit biriyle kurayla ayrıldıysa.
+  const tiedWith = (r) => rows.filter((x) => sameScore(x, r)).length;
+  const podium = rows.slice(0, top).map((r, i) => h("div", { class: `bd-p${i === 0 ? " first" : ""}${r.id === meTag ? " me" : ""}` },
+    h("span", { class: "r" }, r.rank),
+    h("span", { class: "mid" },
+      h("span", { class: "who" }, r.name + (r.id === meTag ? YOU() : "")),
+      h("span", { class: "pz" }, [
+        prizes[i] != null ? prizeText(prizes[i]) : null,
+        many(r.games, "oyun", "game"),
+        many(r.wins, "galibiyet", "win"),
+        tiedWith(r) > 1 ? L(`kurayla · ${tiedWith(r)} kişi eşitti`, `by draw · ${tiedWith(r)} tied`) : null,
+      ].filter(Boolean).map((t) => t.replace(/ /g, " ")).join(" · "))),
+    h("span", { class: "pt" }, r.points)));
+
+  const rest = rows.slice(top);
+  const cols = rest.length > 30 ? 3 : 2;
+  const list = h("section", { class: "bd-list", style: `--rows:${Math.ceil(rest.length / cols)};--cols:${cols}` },
+    rest.map((r) => h("div", { class: `bd-li${r.id === meTag ? " me" : ""}` },
+      h("span", { class: "r" }, r.rank),
+      h("span", { class: "who" }, r.name + (r.id === meTag ? YOU() : "")),
+      h("span", { class: "pt" }, r.points))));
+
+  // Telefondan bakan oyuncuya kendi yeri, ödül sırasına uzaklığıyla.
+  let mine = null;
+  if (me) {
+    const last = rows[Math.min(prizes.length || 3, rows.length) - 1];
+    mine = h("p", { class: "bd-me" }, me.rank <= (prizes.length || 3)
+      ? L(`Sen ${me.rank}. sıradasın, ${me.points} puan. Şu an ödül sırasındasın.`, `You are ${me.rank}${ord(me.rank)} with ${many(me.points, "puan", "point")}. You are in the prizes right now.`)
+      : last.points > me.points
+        ? L(`Sen ${me.rank}. sıradasın, ${me.points} puan. Ödül sırasına ${last.points - me.points} puan uzaktasın.`, `You are ${me.rank}${ord(me.rank)} with ${many(me.points, "puan", "point")}, ${last.points - me.points} behind the prizes.`)
+        : L(`Sen ${me.rank}. sıradasın, ${me.points} puan. Ödül sırasındakiyle puanın eşit; eşitlik kuralı ayırdı.`, `You are ${me.rank}${ord(me.rank)} with ${many(me.points, "puan", "point")}, level with the last prize; the tie rule split you.`));
+  }
+
+  const P = tb.points;
+  const status = before
+    ? L(`${day} açılır`, `opens ${day}`)
+    : over
+      ? L(`son tablo · ${many(tb.games.length, "oyun", "game")}`, `final · ${many(tb.games.length, "game", "game")}`)
+      : [L(`● ${tb.liveTables} masa açık`, `● ${tb.liveTables} ${tb.liveTables === 1 ? "table" : "tables"} open`),
+        many(tb.games.length, "oyun bitti", "game") + (EN ? " done" : ""),
+        pendingGames ? L(`${pendingGames} mühür yolda`, `${pendingGames} on the way to chain`) : null].filter(Boolean).join(" · ");
+
+  return wrap(
+    h("header", { class: "bd-head" },
+      h("div", {},
+        h("span", { class: "eyebrow" }, L("ZKöy · puan tablosu", "ZKöy · leaderboard"), tb.test ? L(" · prova, sayılmaz", " · rehearsal, does not count") : ""),
+        h("h1", {}, title)),
+      h("div", { class: "bd-tools" }, h("span", { class: `seal${online ? "" : " off"}` }, online ? status : NO_LINK()), langButton())),
+    mine,
+    rows.length === 0
+      ? h("div", { class: "bd-empty" },
+        h("p", {}, before
+          ? L(`Turnuva ${day} günü açılır. İlk oyun bitince puanlar burada.`, `The tournament opens on ${day}. Points appear here when the first game ends.`)
+          : L("Henüz biten oyun yok. İlk masa bitince puanlar burada.", "No game has ended yet. Points appear here when the first table ends.")))
+      : [h("section", { class: "bd-podium" }, podium), list],
+    h("footer", { class: "bd-foot" },
+      h("span", {}, h("b", {}, P.win), L(" kazanan takım", " winning side")),
+      h("span", {}, h("b", {}, P.alive), L(" sona kadar hayatta", " alive at the end")),
+      h("span", {}, h("b", {}, P.fool), L(" Deli asılırsa", " the Fool hanged")),
+      h("span", {}, h("b", {}, P.prophecy), L(" hayaletin doğru tahmini", " each right ghost prophecy")),
+      h("span", { class: "tie" }, L("Eşitlikte galibiyet, sonra az oyun, sonra zincirdeki mühürlerden kura.", "Ties: more wins, then fewer games, then a draw from the seals on chain."))),
+    tb.games.length > 0 && h("details", { class: "tech bd-games" },
+      h("summary", {}, L("Tabloyu kendin topla", "Add the board up yourself")),
+      h("div", { class: "mono" },
+        h("p", { class: "muted", style: "font-family:var(--b-font)" }, L(
+          "Her oyunun bütün hamleleri Zcash ağında mühürlü. Aşağıdaki komut bir oyunu kurallarla baştan oynatır ve her oyuncunun puanını yazar; hepsini toplayınca bu tablo çıkar.",
+          "Every move of every game is sealed on the Zcash network. The command below replays one game by the rules and prints each player's points; adding them all up gives this board.")),
+        h("p", {}, `bun tools/verify.ts ${location.origin}/g/${tb.games[0].code}.json`),
+        tb.games.map((g) => h("div", {},
+          h("a", { class: "link", href: `/g/${g.code}.json`, style: "min-height:32px;font-size:12px" }, g.code), "  ",
+          `${many(g.players, "oyuncu", "player")} · ${g.winner === "koy" ? L("köy", "village") : g.winner === "vampir" ? L("vampirler", "vampires") : "?"}`,
+          g.gameroot ? "" : L(" · mühür yolda", " · seal on the way"))))));
+}
+
+const ord = (n) => (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+
+if (boardCode) startBoard();
+else connect();
 render();

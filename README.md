@@ -32,6 +32,8 @@ Seals use zero-value shielded outputs, so a game costs only network fees: about 
 
 First-time players get five short rule cards. A narrator screen introduces each phase so the table always knows what happens next.
 
+**Game nights.** For an event with several tables, the organisers open tables from a host link, and every game adds to one leaderboard at `/e/<CODE>`, made to be projected on a wall. Points come from the sealed moves (winning side 3, alive at the end 1, a hanged Fool 5, each right ghost prophecy 1), so `tools/verify.ts` prints them too and anyone can add the board up again. Ties go to more wins, then fewer games, then a draw seeded by the sealed `gameroot`s of the evening. Prizes, if any, are paid by the organisers outside the game; the game itself holds no money.
+
 ## Verify a game yourself
 
 At the end of every game the app reveals the server's secret, the shuffle seed and the room's viewing key (**Seal details**). With them, one command checks the whole game:
@@ -160,3 +162,5 @@ MIT, see [LICENSE](LICENSE). Found a way to peek at hidden information or act fo
 ### Türkçe
 
 ZKöy, Zcash üzerinde oynanan bir Vampir Köylü parti oyunudur. Aynı masadaki 7-15 kişi telefonlarıyla oynar. Ebe uygulamanın kendisidir: her gece hamlesi ve her oy Zcash'in gizli notlarıyla mühürlenir, oyun sonunda herkes kimin ne yaptığını görür ve kimse sonradan bir şey değiştiremez. Oynamak için [zkoy.fun](https://zkoy.fun), kurallar ve ürün kararları için [SPEC.md](SPEC.md).
+
+Etkinlik gecelerinde birden çok masa tek puan tablosuna yazılır (`/e/<KOD>`, perdeye yansıtılır). Puanlar mühürlü hamlelerden çıkar, eşitlik zincirdeki mühürlerden çekilen kurayla bozulur; ödül varsa düzenleyenler oyun dışında öder, oyun para tutmaz.

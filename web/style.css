@@ -281,3 +281,59 @@ body.screen-mode #app { max-width: 1200px; }
 .stage { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
 .stage h1 { font-size: 72px; }
 @media (max-width: 800px) { .stage { grid-template-columns: 1fr; } }
+
+/* ── puan tablosu: /e/KOD (C · Perde: önce projeksiyon, telefonda alt alta) ── */
+body.board { background: #0B0A12; }
+body.board #app { max-width: none; padding: 0; }
+.bd { gap: 18px; padding: 22px 16px max(28px, env(safe-area-inset-bottom)); }
+.bd-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.bd-head h1 { margin-top: 6px; font-size: clamp(36px, 10vw, 72px); line-height: 0.9; }
+.bd-tools { display: flex; align-items: center; gap: 12px; }
+.bd-tools .seal { white-space: normal; }
+.bd-tools .seal.off { color: var(--wax-soft); }
+.bd-me { font-size: 17px; color: var(--text); border-radius: 14px; background: #2B2410; border: 1px solid var(--gold); padding: 14px 16px; }
+.bd-podium { display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.bd-p { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: #17152A; border: 1px solid var(--line); }
+.bd-p.first { background: radial-gradient(120% 140% at 0% 0%, #4A3B10, #17152A 60%); border-color: var(--gold); }
+.bd-p.me { outline: 2px solid var(--gold); outline-offset: 2px; }
+.bd-p .r { font-family: var(--d-font); font-weight: 800; font-size: 32px; color: var(--muted); min-width: 1.3em; }
+.bd-p.first .r { color: var(--gold); }
+.bd-p .mid { min-width: 0; }
+.bd-p .who { display: block; font-family: var(--d-font); font-weight: 800; font-size: 30px; letter-spacing: -0.03em; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-p .pz { display: block; margin-top: 6px; font-family: var(--m-font); font-size: 12px; color: var(--soft); letter-spacing: 0.03em; }
+.bd-p .pt { font-family: var(--d-font); font-weight: 800; font-size: 48px; color: var(--gold); line-height: 0.9; }
+.bd-list { display: grid; grid-template-columns: 1fr; align-content: start; column-gap: 24px; }
+.bd-li { min-height: 48px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #26233A; font-size: 16px; }
+.bd-li .r { font-family: var(--m-font); color: var(--muted); width: 2em; font-size: 0.8em; flex: none; }
+.bd-li .who { flex-grow: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bd-li .pt { font-family: var(--d-font); font-weight: 800; color: var(--gold); }
+.bd-li.me { background: #2B2410; border-radius: 10px; margin: 0 -10px; padding: 0 10px; border-bottom-color: transparent; color: var(--text); font-weight: 600; }
+.bd-empty { border-radius: 18px; border: 1px dashed var(--line); padding: 28px 20px; }
+.bd-empty p { font-size: 18px; }
+.bd-foot { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; font-size: 14px; color: var(--soft); }
+.bd-foot b { font-family: var(--d-font); color: var(--gold); font-size: 1.3em; }
+.bd-foot .tie { flex-basis: 100%; color: var(--muted); font-size: 13px; }
+
+/* Perde: ilk üç solda, liste sağda sütun sütun, kurallar altta; sayfa kaymaz. */
+@media (min-width: 900px) {
+  .bd { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr auto auto; gap: 0 3vw; padding: 2.6vw 3.4vw; }
+  .bd > * { grid-column: 1 / -1; }
+  .bd > .bar, .bd > .bd-head { grid-row: 1; margin-bottom: 2vw; }
+  .bd > .bd-me { grid-row: 2; margin-bottom: 2vw; }
+  .bd > .bd-empty, .bd > h1 { grid-row: 3; align-self: start; }
+  .bd > .link { grid-row: 4; justify-self: start; }
+  .bd > .bd-podium { grid-row: 3; grid-column: 1; align-self: center; gap: 1.2vw; }
+  .bd > .bd-list { grid-row: 3; grid-column: 2; align-self: center; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: repeat(var(--rows), auto); }
+  .bd > .bd-foot { grid-row: 4; margin-top: 2vw; }
+  .bd-head h1 { font-size: clamp(40px, 4.6vw, 84px); }
+  .bd-tools .seal { font-size: clamp(12px, 1vw, 16px); }
+  .bd-p { padding: 1.4vw 1.8vw; border-radius: 1.4vw; gap: 1.6vw; }
+  .bd-p .r { font-size: clamp(28px, 4vw, 72px); }
+  .bd-p .who { font-size: clamp(28px, 3.8vw, 72px); }
+  .bd-p .pz { font-size: clamp(11px, 1vw, 16px); margin-top: 0.5vw; }
+  .bd-p .pt { font-size: clamp(40px, 6vw, 112px); }
+  .bd-li { min-height: 0; padding: 0.5vw 0; font-size: clamp(14px, 1.3vw, 24px); }
+  .bd-foot { font-size: clamp(12px, 1.15vw, 19px); gap: 0.6vw 2.4vw; }
+  .bd-foot .tie { flex-basis: auto; margin-left: auto; font-size: 0.85em; }
+  .bd-games { grid-row: 5; }
+}

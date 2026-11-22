@@ -16,6 +16,8 @@ export interface Tournament {
   from: number;
   to: number;
   test?: boolean;
+  /** Prizes in US dollars by rank, paid in ZEC by the organisers outside the game. */
+  prizesUsd?: number[];
 }
 
 export const TOURNAMENTS: Tournament[] = [
@@ -26,6 +28,7 @@ export const TOURNAMENTS: Tournament[] = [
     keyHash: "82432b39dea984d4e0797df03ca93815e7c4856b854277607313a5eb9c59f138",
     from: Date.parse("2026-11-23T00:00:00+03:00"),
     to: Date.parse("2026-11-24T06:00:00+03:00"),
+    prizesUsd: [50, 30, 20],
   },
   {
     code: "PROVA",
@@ -35,6 +38,8 @@ export const TOURNAMENTS: Tournament[] = [
     from: Date.parse("2026-11-17T00:00:00+03:00"),
     to: Date.parse("2026-11-23T00:00:00+03:00"),
     test: true,
+    // The rehearsal shows the real evening's prizes so the page is tried as it will be.
+    prizesUsd: [50, 30, 20],
   },
 ];
 

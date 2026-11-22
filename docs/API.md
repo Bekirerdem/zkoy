@@ -27,6 +27,8 @@
 
 **`test`:** `true` ise masa test etiketlidir: oynanır ve mühürlenir ama `/stats` ve `/games` sayaçlarına girmez. Web istemcisinde `/?test=1` ile kurulur. Bot provaları ve denemeler için.
 
+**`tour` (turnuva masası):** `{"code":"BTU23","key":"…"}`. Masa o turnuvanın puan tablosuna yazılır. Turnuvalar `src/server/tournaments.ts` içinde tanımlı; depoda anahtarın yalnız sha256'sı durur. Anahtar yanlışsa `turnuva anahtarı geçersiz`, turnuva saatleri dışındaysa `turnuva şu an açık değil` hatası döner. Prova turnuvası (`test: true`) masayı kendiliğinden test etiketler. Web istemcisinde kurucu `/?t=KOD&k=ANAHTAR` linkini bir kez açar; anahtar telefonda saklanır, adres çubuğundan silinir.
+
 ### Hamleler (`act`)
 
 | `a` | Faz | Alanlar | Kim |
@@ -115,9 +117,14 @@ Düğmeleri `me.can` listesine göre göster; yetki yine sunucuda denetlenir. S�
   "gozcuLog": [{ "round": 1, "target": "p4", "vamp": true }],
   "roles": null,                                   // ölüysen herkesin rolü (hayalet)
   "myProphecy": null, "heirRight": false,
-  "can": ["accuse", "second", "will"]
+  "can": ["accuse", "second", "will"],
+  "standing": null                                 // turnuva masasında END'de: {points, total, rank, of}
 }
 ```
+
+Turnuva masasında `state.s` ayrıca `tournament: {code, title, titleEn}` taşır; END'de `points: {pid: n}` bu oyunun puanlarıdır.
+
+**Puan** (oyun sonunda, `src/engine/score.ts`): kazanan takımda olmak 3, oyun sonunda hayatta olmak 1, Deli olup asılmak 5, hayaletken her doğru kehanet 1. Puanlar mühürlü hamlelerden çıkar; `tools/verify.ts` her oyuncunun puanını da yazar.
 
 ## Akış özeti
 
@@ -134,4 +141,5 @@ Lobide hiçbir şey mühürlenmez. Kadro (`seat` memo'ları) oyun başlarken mü
 - `GET /stats` → `{games, finishedGames, uniqueDevices, playerSeats, sealedTx, sealedMemos, activeDays, testGames, since, liveRooms, chain, opsBalanceZat, height, sealsFailing}`. Test masaları `testGames` dışında hiçbir sayıya girmez. `sealsFailing` sıfırdan büyükse bir odanın mührü zincire gidemiyor demektir.
 - `GET /games` → biten gerçek oyunların listesi: tarih, oyuncu sayısı, tur, kazanan, `gameroot`, mühür tx'leri. Oda kodu ve isim içermez.
 - `GET /g/<KOD>.json` → biten bir oyunun kaydı (oda kodunu bilen okur): oda cüzdanının memo'ları, tx'ler, kura ifşası, görüntüleme anahtarı. `bun tools/verify.ts https://zkoy.fun/g/<KOD>.json` bu kaydı kurallarla yeniden oynatıp doğrular.
+- `GET /e/<KOD>.json` → turnuva puan tablosu: `{code, title, titleEn, from, to, test, prizesUsd, points, board, games, liveTables}`. `board` satırı `{id, name, points, games, wins, rank, tie}`; `id` = `sha256("zkoy-device:" + cihaz)` ilk 10 hane (telefon kendini bulur, cihaz anahtarı sızmaz). Sıralama: puan, sonra galibiyet, sonra az oyun; yine eşitse kura: `sha256(bütün gameroot'lar art arda + ":" + id)`. `tie: true` sırası kurayla belirlenen satırdır. `games` turnuvanın biten oyunları (`/g/<KOD>.json` ile tek tek doğrulanır). `GET /e/<KOD>` aynı tabloyu sayfa olarak gösterir (perdeye yansıtılır, 5 saniyede bir tazelenir).
 - `GET /health` → `{ok, chain}`

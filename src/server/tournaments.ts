@@ -36,7 +36,8 @@ export const TOURNAMENTS: Tournament[] = [
     titleEn: "Tournament rehearsal",
     keyHash: "5a7c8f8f5086f4f23d82fcd6c5ba3d91155350e1880a1f1f7d89612d28b31f77",
     from: Date.parse("2026-11-17T00:00:00+03:00"),
-    to: Date.parse("2026-11-23T00:00:00+03:00"),
+    // Open until the end of January: the BTÜ night was postponed and has no date yet.
+    to: Date.parse("2027-01-31T23:59:00+03:00"),
     test: true,
     // The rehearsal shows the real evening's prizes so the page is tried as it will be.
     prizesUsd: [50, 30, 20],
